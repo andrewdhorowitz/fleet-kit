@@ -1,4 +1,4 @@
-firebase-converge errors — 2026-10-29 16:45:31 EDT
+firebase-converge errors — 2026-10-29 16:48:39 EDT
 
 == run stderr ==
 
@@ -12,7 +12,7 @@ gh: /data/data/com.termux/files/usr/bin/gh
 git: /data/data/com.termux/files/usr/bin/git
 pkg: /data/data/com.termux/files/usr/bin/pkg
 
-=== 2026-10-29 16:45:26 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
+=== 2026-10-29 16:48:34 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
 HTTP 403
 -- response body --
 {
@@ -26,11 +26,11 @@ HTTP 403
         "reason": "SERVICE_DISABLED",
         "domain": "googleapis.com",
         "metadata": {
-          "service": "apikeys.googleapis.com",
-          "serviceTitle": "API Keys API",
-          "containerInfo": "826159679918",
           "consumer": "projects/826159679918",
-          "activationUrl": "https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918"
+          "activationUrl": "https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918",
+          "serviceTitle": "API Keys API",
+          "service": "apikeys.googleapis.com",
+          "containerInfo": "826159679918"
         }
       },
       {
@@ -51,7 +51,7 @@ HTTP 403
   }
 }
 
-=== 2026-10-29 16:45:28 EDT PATCH https://firebaserules.googleapis.com/v1/projects/family-routines-app/releases/cloud.firestore?updateMask=rulesetName
+=== 2026-10-29 16:48:36 EDT PATCH https://firebaserules.googleapis.com/v1/projects/family-routines-app/releases/cloud.firestore?updateMask=rulesetName
 HTTP 400
 -- response body --
 {
