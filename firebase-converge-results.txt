@@ -1,10 +1,9 @@
-firebase-converge results — 2026-10-29 18:50:51 EDT
-flag: INCOMPLETE
+firebase-converge results — 2026-10-29 18:54:19 EDT
+flag: SUCCESS
 setup: ✓ already (python3, curl, gh, git present)
 auth: ✓ applied (service-account token from Downloads JSON)
 step 1 authorized domain private.andrewdhorowitz.com: ✓ already
-step 2 api key referrer: – skipped (HTTP 403: Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'
-Help Token: AaVM3aMSWQa_tOR6JWF2P7UFWgJBI__CyxHA1kwCf9_abYKZlGdqLjy4_phqel3OQBEzoSBDdMb1o97f4Eu-zInRkv3IZwGUg5rNySBZr6yIXNMk — enable the API Keys API once at https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 and the loop will finish this step)
+step 2 api key referrer: ✓ already (verified by referer probe)
 step 3 firestore rules (section_access block): ✓ already
 step 4 owner seat fo•••@gmail.com: ✓ already
 step 4 owner seat an•••@gmail.com: ✓ already
@@ -12,4 +11,4 @@ step 4 family seat je•••@gmail.com: ✓ already
 step 4 family seat al•••@gmail.com: ✓ already
 step 4 family seat ba•••@gmail.com: ✓ already
 step 5 Muse firebase access: ✓ applied — the service-account JSON from Downloads is now the fleet-kit secret FIREBASE_SERVICE_ACCOUNT_JSON; do NOT delete that key in Firebase or this access breaks; revocable anytime in Firebase Console → Project settings → Service accounts.
-summary: INCOMPLETE — one or more steps skipped (see above); full error detail in firebase-converge-errors.txt
+summary: OK — every step applied or already in place
