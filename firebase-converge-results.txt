@@ -1,4 +1,3 @@
-firebase-converge results — 2026-10-29 16:17:31 EDT
-setup: ✓ already (python3, node, firebase-tools, curl present)
-auth: – skipped (no usable Firebase sign-in — run: firebase login --no-localhost)
-summary: INCOMPLETE — one or more steps skipped (see above)
+firebase-converge results — 2026-10-29 16:34:18 EDT
+setup: – skipped (could not install: openssl)
+summary: INCOMPLETE — one or more steps skipped (see above); full error detail in firebase-converge-errors.txt
