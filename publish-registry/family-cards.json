@@ -22,7 +22,8 @@
     "blurb": "Private per-kid schedule cards behind personal codes \u2014 the live tool; a public demo shows the format.",
     "family_visible": true,
     "group": "family",
-    "include": true
+    "include": true,
+    "status": "live"
   },
   "status": "demo-only"
 }
