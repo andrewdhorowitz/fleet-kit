@@ -1,9 +1,10 @@
-firebase-converge results — 2026-10-29 17:03:58 EDT
+firebase-converge results — 2026-10-29 17:09:09 EDT
 flag: INCOMPLETE
 setup: ✓ already (python3, curl, gh, git present)
 auth: ✓ applied (service-account token from Downloads JSON)
 step 1 authorized domain private.andrewdhorowitz.com: ✓ already
-step 2 api key referrer: – skipped (HTTP 403: API Keys API has not been used in project 826159679918 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry. | body: { "error": { "code": 403, "message": "API Keys API has not been used in project 826159679918 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.", "status": "PERMISSION_DENIED", "details": [ { "@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "SERVICE_DISABLED", "domain":)
+step 2 api key referrer: – skipped (HTTP 403: Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'
+Help Token: AaVM3aO-5qMRA_UEpeDI-ZbQGFfaOGnCVONfF_m7W5f7_tZCYa8R1VMhpD10_L1mgaQNk-AWIFIcydDEh4w694r_dA5i934J7El_QGXFHPnvyGqm | body: { "error": { "code": 403, "message": "Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'\nHelp Token: AaVM3aO-5qMRA_UEpeDI-ZbQGFfaOGnCVONfF_m7W5f7_tZCYa8R1VMhpD10_L1mgaQNk-AWIFIcydDEh4w694r_dA5i934J7El_QGXFHPnvyGqm", "status": "PERMISSION_DENIED", "details": [ { "@type": "type.googleapis.com/google.rpc.PreconditionFailure", "violations": [ { "type": "googleapis.com", "subject": "?error_code=110002&service=cloudresourcemanager.googleapis.com&per)
 step 3 firestore rules: – skipped (HTTP 400 updating release: Invalid JSON payload received. Unknown name "rulesetName": Cannot find field. | body: { "error": { "code": 400, "message": "Invalid JSON payload received. Unknown name \"rulesetName\": Cannot find field.", "status": "INVALID_ARGUMENT", "details": [ { "@type": "type.googleapis.com/google.rpc.BadRequest", "fieldViolations": [ { "description": "Invalid JSON payload received. Unknown name \"rulesetName\": Cannot find field." } ] } ] } })
 step 4 owner seat fo•••@gmail.com: ✓ already
 step 4 owner seat an•••@gmail.com: ✓ already
