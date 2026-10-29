@@ -15,6 +15,14 @@
 #      force.
 #   4. Seat the section_access tier entries ({ tier, enabled: true },
 #      document ID = lowercased email).
+#   5. Set up Muse's Firebase access: create a FRESH key on the
+#      project's Firebase Admin SDK service account and store it as
+#      the fleet-kit GitHub secret FIREBASE_SERVICE_ACCOUNT_JSON.
+#      The key material moves only through memory and pipes (straight
+#      from the API response into `gh secret set` on stdin) — it is
+#      never written to a disk file, echoed, or logged. Revocable
+#      anytime in Firebase Console -> Project settings -> Service
+#      accounts.
 #
 # Converger contract: check -> apply what's missing -> report
 # "✓ applied" / "✓ already" / "– skipped (reason)" per step, into
@@ -503,6 +511,77 @@ step4() {
   for email in "${FAMILY[@]}"; do step4_one "$email" family; done
 }
 
+step5_note() {
+  log_line "step 5 note: Muse's access key is revocable anytime in Firebase Console → Project settings → Service accounts. The previously downloaded JSON in Downloads is a separate key and can be deleted whenever."
+}
+
+# Step 5 — Muse's Firebase access. NOTE: this step deliberately
+# does NOT use the api() helper (which buffers responses in a temp
+# file): the key-creation response carries the key material, so the
+# response is held in memory only, decoded in a pipe, and handed to
+# `gh secret set` on stdin. Nothing key-shaped touches disk or logs.
+step5() {
+  local sa="firebase-adminsdk-fbsvc@$PROJECT.iam.gserviceaccount.com"
+  local url="https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts/$sa/keys"
+  python3 - "$WORKDIR/s5-body.json" <<'PY'
+import json, sys
+json.dump({"privateKeyType": "TYPE_GOOGLE_CREDENTIALS_FILE",
+           "keyAlgorithm": "KEY_ALG_RSA_2048"}, open(sys.argv[1], "w"))
+PY
+  local resp code errmsg key_json=""
+  resp="$(curl -sS -g -w '\n__CODE__%{http_code}' -X POST "$url" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H 'Content-Type: application/json' \
+      --data-binary "@$WORKDIR/s5-body.json" 2>"$WORKDIR/curl.err" || true)"
+  code="${resp##*__CODE__}"
+  resp="${resp%$'\n'__CODE__*}"
+  if [[ "$code" != "200" ]]; then
+    errmsg="$(printf '%s' "$resp" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    e = d.get("error") or {}
+    print(e.get("message") or e.get("status") or "unknown error")
+except Exception:
+    print("unparseable error body")
+')"
+    log_line "step 5 Muse firebase access: – skipped (HTTP $code creating service-account key: $errmsg)"
+    mark_incomplete
+    step5_note
+    return
+  fi
+  key_json="$(printf '%s' "$resp" | python3 -c '
+import base64, json, sys
+d = json.load(sys.stdin)
+data = d.get("privateKeyData") or ""
+if not data:
+    sys.exit(1)
+sys.stdout.write(base64.b64decode(data).decode())
+')" || key_json=""
+  resp=""
+  if [[ -z "$key_json" ]]; then
+    log_line "step 5 Muse firebase access: – skipped (key creation returned no privateKeyData)"
+    mark_incomplete
+    step5_note
+    return
+  fi
+  if ! printf '%s' "$key_json" | gh secret set FIREBASE_SERVICE_ACCOUNT_JSON -R andrewdhorowitz/fleet-kit; then
+    key_json=""
+    log_line "step 5 Muse firebase access: – skipped (gh secret set failed)"
+    mark_incomplete
+    step5_note
+    return
+  fi
+  key_json=""
+  if gh secret list -R andrewdhorowitz/fleet-kit 2>/dev/null | grep -q '^FIREBASE_SERVICE_ACCOUNT_JSON'; then
+    log_line "step 5 Muse firebase access: ✓ applied — Muse access key created (Firebase Admin SDK service account) and stored as fleet-kit secret FIREBASE_SERVICE_ACCOUNT_JSON"
+  else
+    log_line "step 5 Muse firebase access: – skipped (secret FIREBASE_SERVICE_ACCOUNT_JSON did not verify in gh secret list)"
+    mark_incomplete
+  fi
+  step5_note
+}
+
 commit_results() {
   (
     cd "$REPO_ROOT" || return
@@ -558,6 +637,7 @@ main() {
   step2
   step3
   step4
+  step5
   finalize
   exit $((1 - OVERALL_OK))
 }
