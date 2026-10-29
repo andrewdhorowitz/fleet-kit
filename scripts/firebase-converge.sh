@@ -13,7 +13,9 @@
 #   1. Verify private.andrewdhorowitz.com is in Firebase Auth's
 #      authorized domains (add it only if missing).
 #   2. Add private.andrewdhorowitz.com/* to the app browser API key's
-#      HTTP referrer allowlist (existing referrers preserved).
+#      HTTP referrer allowlist (existing referrers preserved). First
+#      attempts one Service Usage enable of the API Keys API itself —
+#      if it is disabled, every step-2 call 403s SERVICE_DISABLED.
 #   3. Publish the section_access Firestore rules block — only if the
 #      repo rules (routines-and-streaks/firestore.rules) differ from
 #      the live rules by exactly that block; otherwise skip, never
@@ -67,6 +69,10 @@
 #       --owner <emails...> --family <emails...>          (one pass)
 
 PROJECT="family-routines-app"
+# Numeric project ID (from Google's own SERVICE_DISABLED error
+# metadata): the Service Usage enable endpoint and the API Console
+# activation URL are number-scoped, not ID-scoped.
+PROJECT_NUMBER="826159679918"
 TARGET_DOMAIN="private.andrewdhorowitz.com"
 TARGET_REFERRER="private.andrewdhorowitz.com/*"
 ANCHOR_REFERRER="andrewdhorowitz.github.io/*"
@@ -485,9 +491,48 @@ PY
   fi
 }
 
+# Step-2 skip line: when the self-heal enable below was itself
+# refused (HTTP 403), the line names the one manual remedy instead
+# of dumping the raw body (the full HTTP detail stays in the errors
+# file) — once the API Keys API is enabled, the loop finishes this
+# step by itself. Any other failure keeps the standard form.
+STEP2_ENABLE_DENIED=0
+log_step2_skip() {
+  if [[ "$STEP2_ENABLE_DENIED" == "1" && "$API_CODE" == "403" ]]; then
+    log_line "step 2 api key referrer: – skipped (HTTP $API_CODE: $(err_msg) — enable the API Keys API once at https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=$PROJECT_NUMBER and the loop will finish this step)"
+  else
+    log_line "step 2 api key referrer: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
+  fi
+}
+
 # Step 2 — browser API key HTTP referrer allowlist. The app key is the
 # one whose allowlist already carries the app's github.io origin.
 step2() {
+  # Self-heal first: if the API Keys API itself is disabled in the
+  # project, every call below 403s with SERVICE_DISABLED. One enable
+  # attempt (idempotent) with the same token, logged like every other
+  # call; then a short propagation wait (FB_STEP2_ENABLE_WAIT,
+  # default 20s; 0 skips the wait) and step 2 proceeds regardless —
+  # if propagation still lags, the loop's next attempt is the
+  # backstop. A refused enable is NOT permanent: Andrew can enable
+  # the API once in the console and the loop then succeeds, so the
+  # flag stays INCOMPLETE.
+  local enable_url="https://serviceusage.googleapis.com/v1/projects/$PROJECT_NUMBER/services/apikeys.googleapis.com:enable"
+  printf '{}' > "$WORKDIR/s2-enable.json"
+  api POST "$enable_url" "$WORKDIR/s2-enable.json"
+  STEP2_ENABLE_DENIED=0
+  [[ "$API_CODE" == "403" ]] && STEP2_ENABLE_DENIED=1
+  {
+    echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') step 2 self-heal: POST $enable_url"
+    echo "HTTP $API_CODE"
+    if [[ "$API_CODE" == 2* ]]; then
+      echo "-- response body --"
+      cat "$API_BODY" 2>/dev/null
+    fi
+    echo ""
+  } >> "$API_ERR_LOG"
+  local enable_wait="${FB_STEP2_ENABLE_WAIT:-20}"
+  if [[ "$enable_wait" != "0" ]]; then sleep "$enable_wait"; fi
   local base="https://apikeys.googleapis.com/v2/projects/$PROJECT/locations/global/keys"
   local page_token="" page=0 url
   : > "$WORKDIR/keypages.txt"
@@ -496,7 +541,7 @@ step2() {
     [[ -n "$page_token" ]] && url="$url&pageToken=$page_token"
     api GET "$url"
     if [[ "$API_CODE" != "200" ]]; then
-      log_line "step 2 api key referrer: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
+      log_step2_skip
       mark_incomplete; return
     fi
     cp "$API_BODY" "$WORKDIR/keypage-$page.json"
@@ -553,7 +598,7 @@ PY
       if [[ "$API_CODE" == "200" ]]; then
         log_line "step 2 api key referrer $TARGET_REFERRER: ✓ applied"
       else
-        log_line "step 2 api key referrer: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
+        log_step2_skip
         mark_incomplete
       fi ;;
     *)
@@ -673,13 +718,18 @@ PY
 import json, sys
 print(json.load(open(sys.argv[1])).get("name", ""))
 ' "$API_BODY")"
+  # releases.patch takes an UpdateReleaseRequest, NOT a bare
+  # Release: the Release rides under "release" and the field mask
+  # in the body. A bare {"rulesetName": ...} body is rejected with
+  # Unknown name "rulesetName" (live failure, 2026-10-29 17:04).
   python3 - "$WORKDIR/s3-patch.json" "$PROJECT" "$new_ruleset" <<'PY'
 import json, sys
-body = {"name": "projects/%s/releases/cloud.firestore" % sys.argv[2],
-        "rulesetName": sys.argv[3]}
+body = {"release": {"name": "projects/%s/releases/cloud.firestore" % sys.argv[2],
+                    "rulesetName": sys.argv[3]},
+        "updateMask": "rulesetName"}
 json.dump(body, open(sys.argv[1], "w"))
 PY
-  api PATCH "$rel_url?updateMask=rulesetName" "$WORKDIR/s3-patch.json"
+  api PATCH "$rel_url" "$WORKDIR/s3-patch.json"
   if [[ "$API_CODE" != "200" ]]; then
     log_line "step 3 firestore rules: – skipped (HTTP $API_CODE updating release: $(err_msg) | body: $(err_snippet))"
     mark_incomplete; return
