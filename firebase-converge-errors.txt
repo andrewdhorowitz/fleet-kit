@@ -1,4 +1,4 @@
-firebase-converge errors — 2026-10-29 17:47:55 EDT
+firebase-converge errors — 2026-10-29 17:53:25 EDT
 
 == run stderr ==
 
@@ -12,13 +12,13 @@ gh: /data/data/com.termux/files/usr/bin/gh
 git: /data/data/com.termux/files/usr/bin/git
 pkg: /data/data/com.termux/files/usr/bin/pkg
 
-=== 2026-10-29 17:47:30 EDT POST https://serviceusage.googleapis.com/v1/projects/826159679918/services/apikeys.googleapis.com:enable
+=== 2026-10-29 17:53:00 EDT POST https://serviceusage.googleapis.com/v1/projects/826159679918/services/apikeys.googleapis.com:enable
 HTTP 403
 -- response body --
 {
   "error": {
     "code": 403,
-    "message": "Permission denied to enable service [apikeys.googleapis.com]\nHelp Token: AaVM3aMS5ff4m8aZ9QRSwqJUM7wIERPpsYLB5XLgZL-CngJLS71nONQAEAxnZH5hZwEuUgl-v-I01k14C4vYn5QEjaNSbdwzJONWOXo9WMNcUy2r",
+    "message": "Permission denied to enable service [apikeys.googleapis.com]\nHelp Token: AaVM3aOkRH1fgACX1XJCEb9mRCKzOyjqh_HjzOVlJN1Oo5KTwrT7kJsDq-WJc_A7ZKmB6wolL7clgeL6mQxJUYnX65vv6ybaetjAegPt0qfp3_L-",
     "status": "PERMISSION_DENIED",
     "details": [
       {
@@ -26,7 +26,7 @@ HTTP 403
         "violations": [
           {
             "type": "googleapis.com",
-            "subject": "?error_code=110002&service=serviceusage.googleapis.com&permission=serviceusage.services.enable&error_info_id=CiQwMWExODlhMS1lMTc5LTdjN2MtOGZmMS1mY2ZmZTQ5MGY4ODQSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODlhMS1lMTc5LTdjN2MtOGZmMS1mY2ZmZTQ5MGY4ODQSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t"
+            "subject": "?error_code=110002&service=serviceusage.googleapis.com&permission=serviceusage.services.enable&error_info_id=CiQwMWExODlhNi1lYThhLTcxNmEtYTQxYy05MjU4NDc2NTIyN2QSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODlhNi1lYThhLTcxNmEtYTQxYy05MjU4NDc2NTIyN2QSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t"
           }
         ]
       },
@@ -37,24 +37,24 @@ HTTP 403
         "metadata": {
           "service": "serviceusage.googleapis.com",
           "permission": "serviceusage.services.enable",
-          "error_info_id": "CiQwMWExODlhMS1lMTc5LTdjN2MtOGZmMS1mY2ZmZTQ5MGY4ODQSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t",
-          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODlhMS1lMTc5LTdjN2MtOGZmMS1mY2ZmZTQ5MGY4ODQSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t"
+          "error_info_id": "CiQwMWExODlhNi1lYThhLTcxNmEtYTQxYy05MjU4NDc2NTIyN2QSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t",
+          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODlhNi1lYThhLTcxNmEtYTQxYy05MjU4NDc2NTIyN2QSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t"
         }
       }
     ]
   }
 }
 
-=== 2026-10-29 17:47:30 EDT step 2 self-heal: POST https://serviceusage.googleapis.com/v1/projects/826159679918/services/apikeys.googleapis.com:enable
+=== 2026-10-29 17:53:00 EDT step 2 self-heal: POST https://serviceusage.googleapis.com/v1/projects/826159679918/services/apikeys.googleapis.com:enable
 HTTP 403
 
-=== 2026-10-29 17:47:50 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
+=== 2026-10-29 17:53:20 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
 HTTP 403
 -- response body --
 {
   "error": {
     "code": 403,
-    "message": "Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'\nHelp Token: AaVM3aN3lYpCZ2RgWIIAhXSnw_B7ZCqPoVhrQ-FsJpNM0KTR4B0TIhJPMPlBhSRYRQsdN_avFwSmqwdGoq1qUQQSfCdXn1TK7v7gM3uVov7Fvnoh",
+    "message": "Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'\nHelp Token: AaVM3aMxGuircs8yRF5Qk6lwedbJbcce1QmrxSuchbLNrHdQiK7taF-omsYAg104RfZ1SDQtpEqtHjCVMHLiAh29S3FWbRJyq30oy8Bgb8Uc_vXd",
     "status": "PERMISSION_DENIED",
     "details": [
       {
@@ -62,7 +62,7 @@ HTTP 403
         "violations": [
           {
             "type": "googleapis.com",
-            "subject": "?error_code=110002&service=cloudresourcemanager.googleapis.com&permission=serviceusage.apiKeys.list&error_info_id=CiQwMWExODlhMi0zMThhLTdlYTMtYWNiYy1hYjRhZmNiMDYwOWESFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODlhMi0zMThhLTdlYTMtYWNiYy1hYjRhZmNiMDYwOWESFXByb2plY3RzLzgyNjE1OTY3OTkxOA%253D%253D"
+            "subject": "?error_code=110002&service=cloudresourcemanager.googleapis.com&permission=serviceusage.apiKeys.list&error_info_id=CiQwMWExODlhNy0zYjAwLTdkNTUtYTFiMy05YmE2ZjYwNjk3ZGYSFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODlhNy0zYjAwLTdkNTUtYTFiMy05YmE2ZjYwNjk3ZGYSFXByb2plY3RzLzgyNjE1OTY3OTkxOA%253D%253D"
           }
         ]
       },
@@ -73,8 +73,8 @@ HTTP 403
         "metadata": {
           "service": "cloudresourcemanager.googleapis.com",
           "permission": "serviceusage.apiKeys.list",
-          "error_info_id": "CiQwMWExODlhMi0zMThhLTdlYTMtYWNiYy1hYjRhZmNiMDYwOWESFXByb2plY3RzLzgyNjE1OTY3OTkxOA==",
-          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODlhMi0zMThhLTdlYTMtYWNiYy1hYjRhZmNiMDYwOWESFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D"
+          "error_info_id": "CiQwMWExODlhNy0zYjAwLTdkNTUtYTFiMy05YmE2ZjYwNjk3ZGYSFXByb2plY3RzLzgyNjE1OTY3OTkxOA==",
+          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODlhNy0zYjAwLTdkNTUtYTFiMy05YmE2ZjYwNjk3ZGYSFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D"
         }
       }
     ]
