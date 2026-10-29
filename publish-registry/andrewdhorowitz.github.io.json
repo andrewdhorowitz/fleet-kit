@@ -1,1 +1,27 @@
-{"private_hosts":[],"project":"andrewdhorowitz.com","public_urls":{"demo":null,"docs":"https://andrewdhorowitz.com/docs/whole-system-architecture.md","interactive":"https://andrewdhorowitz.com/docs/interactive-architecture.html","repo":"https://github.com/andrewdhorowitz/andrewdhorowitz.github.io","site":"https://andrewdhorowitz.com/"},"section":{"blurb":"Andrew's public portfolio — projects, playbooks, and the site itself.","family_visible":false,"group":"misc","include":true},"status":"public"}
+{
+  "private_hosts": [],
+  "project": "andrewdhorowitz.com",
+  "public_urls": {
+    "demo": null,
+    "docs": "https://andrewdhorowitz.com/docs/whole-system-architecture.md",
+    "interactive": "https://andrewdhorowitz.com/docs/interactive-architecture.html",
+    "repo": "https://github.com/andrewdhorowitz/andrewdhorowitz.github.io",
+    "site": "https://andrewdhorowitz.com/"
+  },
+  "section": {
+    "also": [
+      {
+        "blurb": "The Oct 2026 restructure: one name and one framing per project across repos, sites, READMEs, and task lists.",
+        "family_visible": false,
+        "group": "projects",
+        "link": "https://andrewdhorowitz.com/",
+        "name": "Site & repos restructure"
+      }
+    ],
+    "blurb": "Andrew's public portfolio \u2014 projects, playbooks, and the site itself.",
+    "family_visible": false,
+    "group": "projects",
+    "include": true
+  },
+  "status": "public"
+}
