@@ -1,5 +1,129 @@
-firebase-converge errors — 2026-10-29 16:34:46 EDT
+firebase-converge errors — 2026-10-29 16:44:20 EDT
 
 == run stderr ==
 
 == api errors ==
+=== setup diagnostics (command -v)
+python3: /data/data/com.termux/files/usr/bin/python3
+curl: /data/data/com.termux/files/usr/bin/curl
+openssl: missing
+node: /data/data/com.termux/files/usr/bin/node
+gh: /data/data/com.termux/files/usr/bin/gh
+git: /data/data/com.termux/files/usr/bin/git
+pkg: /data/data/com.termux/files/usr/bin/pkg
+
+=== 2026-10-29 16:44:12 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
+HTTP 403
+-- response body --
+{
+  "error": {
+    "code": 403,
+    "message": "API Keys API has not been used in project 826159679918 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.",
+    "status": "PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "SERVICE_DISABLED",
+        "domain": "googleapis.com",
+        "metadata": {
+          "containerInfo": "826159679918",
+          "activationUrl": "https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918",
+          "service": "apikeys.googleapis.com",
+          "consumer": "projects/826159679918",
+          "serviceTitle": "API Keys API"
+        }
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+        "locale": "en-US",
+        "message": "API Keys API has not been used in project 826159679918 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry."
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.Help",
+        "links": [
+          {
+            "description": "Google developers console API activation",
+            "url": "https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+=== 2026-10-29 16:44:15 EDT PATCH https://firebaserules.googleapis.com/v1/projects/family-routines-app/releases/cloud.firestore?updateMask=rulesetName
+HTTP 400
+-- response body --
+{
+  "error": {
+    "code": 400,
+    "message": "Invalid JSON payload received. Unknown name \"rulesetName\": Cannot find field.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        "fieldViolations": [
+          {
+            "description": "Invalid JSON payload received. Unknown name \"rulesetName\": Cannot find field."
+          }
+        ]
+      }
+    ]
+  }
+}
+
+=== 2026-10-29 16:44:15 EDT GET https://firestore.googleapis.com/v1/projects/family-routines-app/databases/(default)/documents/section_access/fo•••@gmail.com
+HTTP 404
+-- response body --
+{
+  "error": {
+    "code": 404,
+    "message": "Document \"projects/family-routines-app/databases/(default)/documents/section_access/fo•••@gmail.com\" not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
+=== 2026-10-29 16:44:16 EDT GET https://firestore.googleapis.com/v1/projects/family-routines-app/databases/(default)/documents/section_access/an•••@gmail.com
+HTTP 404
+-- response body --
+{
+  "error": {
+    "code": 404,
+    "message": "Document \"projects/family-routines-app/databases/(default)/documents/section_access/an•••@gmail.com\" not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
+=== 2026-10-29 16:44:17 EDT GET https://firestore.googleapis.com/v1/projects/family-routines-app/databases/(default)/documents/section_access/je•••@gmail.com
+HTTP 404
+-- response body --
+{
+  "error": {
+    "code": 404,
+    "message": "Document \"projects/family-routines-app/databases/(default)/documents/section_access/je•••@gmail.com\" not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
+=== 2026-10-29 16:44:18 EDT GET https://firestore.googleapis.com/v1/projects/family-routines-app/databases/(default)/documents/section_access/al•••@gmail.com
+HTTP 404
+-- response body --
+{
+  "error": {
+    "code": 404,
+    "message": "Document \"projects/family-routines-app/databases/(default)/documents/section_access/al•••@gmail.com\" not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
+=== 2026-10-29 16:44:19 EDT GET https://firestore.googleapis.com/v1/projects/family-routines-app/databases/(default)/documents/section_access/ba•••@gmail.com
+HTTP 404
+-- response body --
+{
+  "error": {
+    "code": 404,
+    "message": "Document \"projects/family-routines-app/databases/(default)/documents/section_access/ba•••@gmail.com\" not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
