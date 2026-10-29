@@ -1,0 +1,1 @@
+{"private_hosts":[],"project":"Fleet Kit","public_urls":{"demo":null,"docs":null,"interactive":null,"repo":"https://github.com/andrewdhorowitz/fleet-kit","site":null},"section":{"blurb":"Shared kit code for the fleet — error reporter, diagram tooling, and the publish registry.","family_visible":false,"group":"misc","include":true},"status":"public"}
