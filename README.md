@@ -4,6 +4,8 @@ Shared kit code for Andrew Horowitz's public projects — error reporting, diagr
 tooling, and site snippets, published in one place so the public repos can consume
 it directly.
 
+> **Published:** Repo — https://github.com/andrewdhorowitz/fleet-kit
+
 ## Why this repo exists
 
 GitHub's rule is that a public repository can only consume shared code (reusable
@@ -40,6 +42,7 @@ limits and risks in its own README.
 | Folder | What it is |
 |---|---|
 | [`error-reporter/`](error-reporter/) | A dependency-free visitor error-reporting core for static sites and small web apps: one funnel, a shared tier-classification table, pluggable sinks (Firestore, a collector Worker, Sentry, none), and a test suite. |
+| [`publish-registry/`](publish-registry/) | One copy of every fleet repo's `publish.json` — the fleet's declared public/private surfaces, plus the manifest schema the copies validate against. |
 
 More pieces (diagram tooling, site snippets) land here as they graduate from the
 private kit.
