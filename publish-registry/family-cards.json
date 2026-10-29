@@ -11,15 +11,7 @@
     "site": null
   },
   "section": {
-    "also": [
-      {
-        "blurb": "Export-only two-week view of the family schedule \u2014 the view the cards render.",
-        "family_visible": true,
-        "link": "https://family-cards.andrewdhorowitz.com/",
-        "name": "Family calendar view"
-      }
-    ],
-    "blurb": "Private per-kid schedule cards behind personal codes \u2014 the live tool; a public demo shows the format.",
+    "blurb": "The live tool \u2014 private per-kid schedule cards behind personal codes; each card renders that kid's two-week calendar view. Demo and Repo links are the public demo's (invented kids and events).",
     "family_visible": true,
     "group": "family",
     "include": true,
