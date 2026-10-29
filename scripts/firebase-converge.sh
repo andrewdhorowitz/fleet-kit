@@ -37,6 +37,14 @@
 # read from GitHub and the script fixed without screenshots.
 # Idempotent; safe to re-run. Exits nonzero when INCOMPLETE.
 #
+# Default invocation LOOPS until a pass fully succeeds: each
+# attempt re-pulls this repo (picking up script fixes pushed
+# mid-loop), runs one pass as a child process (so a replaced
+# script file never corrupts a running process), and retries with
+# backoff — 60s, 180s, then 300s (FB_LOOP_DELAYS, space-separated,
+# overrides) — up to 20 attempts. --once runs a single pass and
+# exits with that pass's real status.
+#
 # PRIVACY: no email addresses are stored in this repo, the results
 # file, or the errors file. Tier addresses arrive as run-time
 # arguments only and are reported masked (first two letters +
@@ -44,7 +52,9 @@
 #
 # Usage:
 #   bash scripts/firebase-converge.sh [KEYFILE.json] \
-#       --owner <emails...> --family <emails...>
+#       --owner <emails...> --family <emails...>          (loop)
+#   bash scripts/firebase-converge.sh --once [KEYFILE.json] \
+#       --owner <emails...> --family <emails...>          (one pass)
 
 PROJECT="family-routines-app"
 TARGET_DOMAIN="private.andrewdhorowitz.com"
@@ -66,6 +76,7 @@ OVERALL_OK=1
 ACCESS_TOKEN=""
 API_CODE=""
 API_BODY=""
+AUTH_FAIL_MSG=""
 WORKDIR=""
 STDERR_LOG="/dev/null"
 API_ERR_LOG="/dev/null"
@@ -213,19 +224,52 @@ parse_args() {
   return 0
 }
 
-# _ensure_pkg CMD PKG -> 0 installed now, 2 already present, 1 failed
+# _ensure_pkg CMD PKG -> 0 installed now, 2 already present, 1 failed.
+# pkg output is never swallowed: every pkg run's stdout+stderr is
+# captured and appended to the API error log under a header naming
+# the command, so a failed install is diagnosable from the committed
+# errors file. The first install of a run is preceded by one
+# `pkg update` (captured the same way) — stale Termux package lists
+# are the classic silent-install-failure cause.
+PKG_UPDATED=0
+_pkg_run_captured() {
+  local out rc
+  out="$("$@" 2>&1)"; rc=$?
+  {
+    echo "=== $* (exit $rc)"
+    printf '%s\n' "$out"
+    echo ""
+  } >> "$API_ERR_LOG"
+  return $rc
+}
 _ensure_pkg() {
   if command -v "$1" >/dev/null 2>&1; then return 2; fi
-  if command -v pkg >/dev/null 2>&1; then pkg install -y "$2" >/dev/null 2>&1; fi
+  if command -v pkg >/dev/null 2>&1; then
+    if [[ "$PKG_UPDATED" == "0" ]]; then
+      PKG_UPDATED=1
+      _pkg_run_captured pkg update
+    fi
+    _pkg_run_captured pkg install -y "$2"
+  fi
   if command -v "$1" >/dev/null 2>&1; then return 0; fi
   return 1
 }
 
 ensure_tools() {
-  local installed=() failed=() rc
+  local installed=() failed=() rc c p
+  # Setup diagnostics: where every tool the script may need resolves
+  # (or "missing"), recorded in the error log so any setup failure
+  # is self-explaining from the committed errors file.
+  {
+    echo "=== setup diagnostics (command -v)"
+    for c in python3 curl openssl node gh git pkg; do
+      p="$(command -v "$c" 2>/dev/null || true)"
+      echo "$c: ${p:-missing}"
+    done
+    echo ""
+  } >> "$API_ERR_LOG"
   _ensure_pkg python3 python;   rc=$?; [[ $rc -eq 0 ]] && installed+=(python3); [[ $rc -eq 1 ]] && failed+=(python3)
   _ensure_pkg curl curl;        rc=$?; [[ $rc -eq 0 ]] && installed+=(curl);    [[ $rc -eq 1 ]] && failed+=(curl)
-  _ensure_pkg openssl openssl;  rc=$?; [[ $rc -eq 0 ]] && installed+=(openssl); [[ $rc -eq 1 ]] && failed+=(openssl)
   _ensure_pkg gh gh;            rc=$?; [[ $rc -eq 0 ]] && installed+=(gh);      [[ $rc -eq 1 ]] && failed+=(gh)
   _ensure_pkg git git;          rc=$?; [[ $rc -eq 0 ]] && installed+=(git);     [[ $rc -eq 1 ]] && failed+=(git)
   if [[ ${#failed[@]} -gt 0 ]]; then
@@ -235,7 +279,7 @@ ensure_tools() {
   if [[ ${#installed[@]} -gt 0 ]]; then
     log_line "setup: ✓ applied (installed: ${installed[*]})"
   else
-    log_line "setup: ✓ already (python3, curl, openssl, gh, git present)"
+    log_line "setup: ✓ already (python3, curl, gh, git present)"
   fi
   return 0
 }
@@ -259,9 +303,57 @@ resolve_keyfile() {
   return 0
 }
 
+# _sign_openssl / _sign_node -> RS256-sign $WORKDIR/jwt-unsigned.txt
+# into $WORKDIR/jwt-sig.bin using $WORKDIR/pkey.pem. Node's
+# crypto.sign uses PKCS#1 v1.5 padding for RSA keys by default,
+# which is exactly what RS256 requires.
+_sign_openssl() {
+  openssl dgst -sha256 -sign "$WORKDIR/pkey.pem" \
+    -out "$WORKDIR/jwt-sig.bin" "$WORKDIR/jwt-unsigned.txt" \
+    2>>"$API_ERR_LOG"
+}
+
+_sign_node() {
+  cat > "$WORKDIR/sign.js" <<'JS'
+const fs = require("fs");
+const crypto = require("crypto");
+const data = fs.readFileSync(process.argv[2]);
+const key = fs.readFileSync(process.argv[3], "utf8");
+fs.writeFileSync(process.argv[4], crypto.sign("RSA-SHA256", data, key));
+JS
+  node "$WORKDIR/sign.js" "$WORKDIR/jwt-unsigned.txt" \
+    "$WORKDIR/pkey.pem" "$WORKDIR/jwt-sig.bin" 2>>"$API_ERR_LOG"
+}
+
+# A usable JWT signer: openssl or node on PATH.
+signer_available() {
+  command -v openssl >/dev/null 2>&1 || command -v node >/dev/null 2>&1
+}
+
+# sign_jwt -> sign the JWT with whichever signer exists. openssl is
+# not guaranteed on Termux, so node is a full fallback. If neither
+# exists, one openssl install is attempted (its output is captured
+# by _ensure_pkg) and the signers re-probed; if there is still no
+# signer, AUTH_FAIL_MSG is set and the failure is recorded in the
+# error log.
+sign_jwt() {
+  if ! signer_available; then
+    _ensure_pkg openssl openssl
+  fi
+  if command -v openssl >/dev/null 2>&1; then _sign_openssl; return $?; fi
+  if command -v node >/dev/null 2>&1; then _sign_node; return $?; fi
+  AUTH_FAIL_MSG="no RSA signer available: openssl and node both missing"
+  {
+    echo "=== auth signing failed: no RSA signer available (openssl and node both missing)"
+    echo ""
+  } >> "$API_ERR_LOG"
+  return 1
+}
+
 # Access token from the service-account JSON: RS256 JWT signed with
-# openssl, exchanged at Google's OAuth2 endpoint. The extracted PEM
-# lives only in the private temp dir, which is wiped on exit.
+# openssl (or node when openssl is absent — see sign_jwt), exchanged
+# at Google's OAuth2 endpoint. The extracted PEM lives only in the
+# private temp dir, which is wiped on exit.
 get_access_token() {
   if ! python3 - "$KEYFILE" "$WORKDIR/pkey.pem" "$WORKDIR/sa-email.txt" <<'PY'
 import json, sys
@@ -296,9 +388,7 @@ print(b64(json.dumps(header).encode()) + "." + b64(json.dumps(claims).encode()))
 PY
 )" || return 1
   printf '%s' "$jwt_unsigned" > "$WORKDIR/jwt-unsigned.txt"
-  if ! openssl dgst -sha256 -sign "$WORKDIR/pkey.pem" \
-        -out "$WORKDIR/jwt-sig.bin" "$WORKDIR/jwt-unsigned.txt" \
-        2>>"$API_ERR_LOG"; then
+  if ! sign_jwt; then
     API_CODE=""
     API_BODY=""
     return 1
@@ -765,6 +855,8 @@ main() {
   if ! get_access_token; then
     if [[ -n "$API_CODE" ]]; then
       log_line "auth: – skipped (HTTP $API_CODE exchanging the service-account key: $(err_msg) | body: $(err_snippet))"
+    elif [[ -n "$AUTH_FAIL_MSG" ]]; then
+      log_line "auth: – skipped ($AUTH_FAIL_MSG)"
     else
       log_line "auth: – skipped (service-account JSON unreadable or signing failed — see firebase-converge-errors.txt)"
     fi
@@ -782,12 +874,57 @@ main() {
   exit $((1 - OVERALL_OK))
 }
 
+# Loop wrapper (default mode): Andrew runs one command and the
+# script babysits itself. Each attempt re-pulls the repo — so a
+# fix pushed mid-loop is picked up automatically — then runs one
+# full pass as a CHILD invocation of the freshly pulled script
+# (`--once`), which commits+pushes its own results/errors as the
+# audit trail. A failed git pull (offline, conflict) never kills
+# the loop: it is noted and the local copy runs. The wrapper only
+# prints to the terminal; it writes no files of its own.
+loop_main() {
+  local delays=(${FB_LOOP_DELAYS:-60 180 300})
+  local max_attempts=20 attempt delay idx
+  local self="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    if ! git -C "$REPO_ROOT" pull -q >/dev/null 2>&1; then
+      echo "--- git pull failed — continuing with the local copy ---"
+    fi
+    if bash "$self" --once "$@"; then
+      echo "--- firebase-converge: SUCCESS on attempt $attempt/$max_attempts ---"
+      return 0
+    fi
+    if [[ $attempt -lt $max_attempts ]]; then
+      idx=$((attempt - 1))
+      if [[ $idx -ge ${#delays[@]} ]]; then idx=$((${#delays[@]} - 1)); fi
+      delay="${delays[$idx]}"
+      echo "--- attempt $attempt/$max_attempts — incomplete, retrying in ${delay}s (script re-pulled) ---"
+      sleep "$delay"
+    fi
+  done
+  echo "summary: INCOMPLETE after $max_attempts attempts — stopping loop"
+  return 1
+}
+
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  ONCE=0
+  PASS_ARGS=()
+  for _arg in "$@"; do
+    if [[ "$_arg" == "--once" ]]; then
+      ONCE=1
+    else
+      PASS_ARGS+=("$_arg")
+    fi
+  done
+  if [[ $ONCE -eq 0 ]]; then
+    loop_main "${PASS_ARGS[@]}"
+    exit $?
+  fi
   WORKDIR="$(mktemp -d)"
   STDERR_LOG="$WORKDIR/stderr.log"
   API_ERR_LOG="$WORKDIR/api-errors.log"
   : > "$STDERR_LOG"
   : > "$API_ERR_LOG"
   trap 'rm -rf "$WORKDIR"' EXIT
-  main "$@" 2>>"$STDERR_LOG"
+  main "${PASS_ARGS[@]}" 2>>"$STDERR_LOG"
 fi
