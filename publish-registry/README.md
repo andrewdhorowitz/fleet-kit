@@ -25,3 +25,10 @@ read the whole fleet's publish intent from one place.
 First pass (Oct 29, 2026): andrewdhorowitz.github.io,
 routines-and-streaks, aimf-protocol, family-cards-demo, family-cards,
 fleet-kit.
+
+**Intentional dual listing (Andrew, Oct 29, 2026):** the publishing
+system lists itself twice on purpose — the restructure work appears
+as a Projects entry (in the portfolio manifest's `also` list) and the
+manifest/gate/index machinery appears as a Shared Infrastructure entry
+(in fleet-kit's `also` list). Tooling must not flag the pair as a
+duplicate-name defect.
