@@ -20,7 +20,13 @@ read the whole fleet's publish intent from one place.
   it is for surfaces that carry the family's own data (the cards, the
   calendar view), not for general tooling. The optional `also` list
   names companion surfaces rendered from the same manifest (e.g. the
-  Family Cards entry's calendar-view companion).
+  Family Cards entry's calendar-view companion). An optional `status`
+  in `section` (or on an `also` item) overrides the badge the index
+  shows for that entry, for when the entry itself differs from the
+  project's public posture: Family Cards is `demo-only` as a posture
+  (only its demo may be linked publicly), but the index entry is the
+  live tool itself, so its section status is `live`. Without the
+  override, the badge falls back to the manifest `status`.
 
 First pass (Oct 29, 2026): andrewdhorowitz.github.io,
 routines-and-streaks, aimf-protocol, family-cards-demo, family-cards,
