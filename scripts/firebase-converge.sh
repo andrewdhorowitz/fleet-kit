@@ -37,6 +37,16 @@
 # read from GitHub and the script fixed without screenshots.
 # Idempotent; safe to re-run. Exits nonzero when INCOMPLETE.
 #
+# Every pass also writes a machine-readable outcome flag as the
+# second line of the results file, directly under the header:
+# "flag: SUCCESS" (every step applied/already), "flag: INCOMPLETE"
+# (anything else), or "flag: IMPOSSIBLE: <reason>" when the pass
+# hit a retry-proof failure — keyfile not found, the service-
+# account key rejected at the token exchange (invalid_grant /
+# invalid_client), no RSA signer available, or the rules step
+# refusing on drift. The flag is reporting only: it never changes
+# the loop's attempts, backoff, or exit codes.
+#
 # Default invocation LOOPS until a pass fully succeeds: each
 # attempt re-pulls this repo (picking up script fixes pushed
 # mid-loop), runs one pass as a child process (so a replaced
@@ -73,6 +83,7 @@ RESULTS="$REPO_ROOT/firebase-converge-results.txt"
 ERRORS_FILE="$REPO_ROOT/firebase-converge-errors.txt"
 
 OVERALL_OK=1
+PERMANENT_REASON=""
 ACCESS_TOKEN=""
 API_CODE=""
 API_BODY=""
@@ -90,6 +101,14 @@ set -u
 log_line() { echo "$1" | tee -a "$RESULTS"; }
 
 mark_incomplete() { OVERALL_OK=0; }
+
+# Record a permanent (retry-proof) failure of this pass — the
+# results flag reports it as IMPOSSIBLE. The first one wins.
+mark_permanent() {
+  if [[ -z "$PERMANENT_REASON" ]]; then
+    PERMANENT_REASON="$1"
+  fi
+}
 
 # First error message out of a Google API JSON error body (file arg).
 jerr() {
@@ -634,6 +653,7 @@ PY
   rules_canonical "$WORKDIR/repo-stripped.rules" > "$WORKDIR/repo.canon"
   rules_canonical "$WORKDIR/live.rules" > "$WORKDIR/live.canon"
   if ! cmp -s "$WORKDIR/repo.canon" "$WORKDIR/live.canon"; then
+    mark_permanent "live rules differ beyond the section blocks"
     log_line "step 3 firestore rules: – skipped (live rules differ from the repo source by more than the section block — not publishing)"
     mark_incomplete; return
   fi
@@ -820,7 +840,28 @@ commit_results() {
   )
 }
 
+# Insert the outcome flag as line 2 of the results file (directly
+# under the header) and echo it to the terminal like every other
+# results line. SUCCESS = every step applied/already; IMPOSSIBLE =
+# a permanent failure was recorded (first one wins); anything else
+# is INCOMPLETE. Reporting only — no behavior depends on it.
+write_flag() {
+  local flag_line="$1"
+  { head -n 1 "$RESULTS"; echo "$flag_line"; tail -n +2 "$RESULTS"; } \
+    > "$RESULTS.flagtmp" && mv "$RESULTS.flagtmp" "$RESULTS"
+  echo "$flag_line"
+}
+
 finalize() {
+  local flag_line
+  if [[ "$OVERALL_OK" == "1" ]]; then
+    flag_line="flag: SUCCESS"
+  elif [[ -n "$PERMANENT_REASON" ]]; then
+    flag_line="flag: IMPOSSIBLE: $PERMANENT_REASON"
+  else
+    flag_line="flag: INCOMPLETE"
+  fi
+  write_flag "$flag_line"
   if [[ "$OVERALL_OK" == "1" ]]; then
     log_line "summary: OK — every step applied or already in place"
   else
@@ -844,8 +885,10 @@ main() {
   fi
   if ! resolve_keyfile; then
     if [[ -n "$KEYFILE_ARG" ]]; then
+      mark_permanent "keyfile not found at the given path"
       log_line "auth: – skipped (service-account JSON not found at $KEYFILE_ARG)"
     else
+      mark_permanent "keyfile not found in Downloads"
       log_line "auth: – skipped (no service-account JSON found in ~/storage/downloads)"
     fi
     mark_incomplete
@@ -854,8 +897,17 @@ main() {
   fi
   if ! get_access_token; then
     if [[ -n "$API_CODE" ]]; then
+      # A dead/revoked key is permanent: the token endpoint says
+      # so in the response body (invalid_grant / invalid_client).
+      if [[ -f "$API_BODY" ]] && grep -q "invalid_grant" "$API_BODY"; then
+        mark_permanent "service-account key rejected (invalid_grant)"
+      elif [[ -f "$API_BODY" ]] && grep -q "invalid_client" "$API_BODY"; then
+        mark_permanent "service-account key rejected (invalid_client)"
+      fi
       log_line "auth: – skipped (HTTP $API_CODE exchanging the service-account key: $(err_msg) | body: $(err_snippet))"
     elif [[ -n "$AUTH_FAIL_MSG" ]]; then
+      # AUTH_FAIL_MSG is set only by sign_jwt's no-signer path.
+      mark_permanent "no RSA signer available (openssl and node both missing)"
       log_line "auth: – skipped ($AUTH_FAIL_MSG)"
     else
       log_line "auth: – skipped (service-account JSON unreadable or signing failed — see firebase-converge-errors.txt)"
