@@ -1,1 +1,38 @@
-{"private_hosts":[],"project":"Fleet Kit","public_urls":{"demo":null,"docs":null,"interactive":null,"repo":"https://github.com/andrewdhorowitz/fleet-kit","site":null},"section":{"blurb":"Shared kit code for the fleet — error reporter, diagram tooling, and the publish registry.","family_visible":false,"group":"misc","include":true},"status":"public"}
+{
+  "private_hosts": [],
+  "project": "Fleet Kit",
+  "public_urls": {
+    "demo": null,
+    "docs": null,
+    "interactive": null,
+    "repo": "https://github.com/andrewdhorowitz/fleet-kit",
+    "site": null
+  },
+  "section": {
+    "also": [
+      {
+        "blurb": "Dependency-free visitor error-reporting core shared by the fleet's sites and apps.",
+        "family_visible": false,
+        "link": "https://github.com/andrewdhorowitz/fleet-kit/tree/main/error-reporter",
+        "name": "Error reporter"
+      },
+      {
+        "blurb": "The private kit source: repo template and the converger scripts that keep fleet repos, DNS, and settings at standard.",
+        "family_visible": false,
+        "link": "https://github.com/andrewdhorowitz/repo-template",
+        "name": "Repo template & convergers"
+      },
+      {
+        "blurb": "The fleet's publish manifests, the portfolio link gate, and this private index.",
+        "family_visible": false,
+        "link": "https://github.com/andrewdhorowitz/fleet-kit/tree/main/publish-registry",
+        "name": "Publishing system"
+      }
+    ],
+    "blurb": "Shared kit code for the fleet \u2014 error reporter, diagram tooling, and the publish registry.",
+    "family_visible": false,
+    "group": "shared-infrastructure",
+    "include": true
+  },
+  "status": "public"
+}
