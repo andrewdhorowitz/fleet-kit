@@ -125,6 +125,14 @@
               "name": {
                 "minLength": 1,
                 "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "public",
+                  "live",
+                  "demo-only",
+                  "private"
+                ]
               }
             },
             "required": [
@@ -153,6 +161,14 @@
         },
         "include": {
           "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "public",
+            "live",
+            "demo-only",
+            "private"
+          ]
         }
       },
       "required": [
