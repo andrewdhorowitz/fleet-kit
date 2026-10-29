@@ -1,10 +1,10 @@
-firebase-converge results — 2026-10-29 18:49:23 EDT
+firebase-converge results — 2026-10-29 18:50:51 EDT
 flag: INCOMPLETE
 setup: ✓ already (python3, curl, gh, git present)
 auth: ✓ applied (service-account token from Downloads JSON)
 step 1 authorized domain private.andrewdhorowitz.com: ✓ already
 step 2 api key referrer: – skipped (HTTP 403: Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'
-Help Token: AaVM3aP8ZDv2TU6Mg-GTQ3_PRnFoP4HDxjYL_8cxRgXHeA6YV-jlklh0fXHJegOLp3XoEUd8JknIj4Y-eaoC2tWSPr2JK-Zv63YX2ncSSfgNoZRv — enable the API Keys API once at https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 and the loop will finish this step)
+Help Token: AaVM3aMSWQa_tOR6JWF2P7UFWgJBI__CyxHA1kwCf9_abYKZlGdqLjy4_phqel3OQBEzoSBDdMb1o97f4Eu-zInRkv3IZwGUg5rNySBZr6yIXNMk — enable the API Keys API once at https://console.developers.google.com/apis/api/apikeys.googleapis.com/overview?project=826159679918 and the loop will finish this step)
 step 3 firestore rules (section_access block): ✓ already
 step 4 owner seat fo•••@gmail.com: ✓ already
 step 4 owner seat an•••@gmail.com: ✓ already
