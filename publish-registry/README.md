@@ -17,10 +17,10 @@ read the whole fleet's publish intent from one place.
   The private Family Cards section is generated from these copies too.
 - **`section` object:** opts a project into the private index section
   (gated; never linked publicly). `family_visible` is an explicit yes —
-  it is for surfaces that carry the family's own data (the cards, the
-  calendar view), not for general tooling. The optional `also` list
+  it is for surfaces that carry the family's own data (the cards),
+  not for general tooling. The optional `also` list
   names companion surfaces rendered from the same manifest (e.g. the
-  Family Cards entry's calendar-view companion). An optional `status`
+  Fleet Kit's error-reporter companion). An optional `status`
   in `section` (or on an `also` item) overrides the badge the index
   shows for that entry, for when the entry itself differs from the
   project's public posture: Family Cards is `demo-only` as a posture
