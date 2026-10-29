@@ -1,4 +1,5 @@
-firebase-converge results — 2026-10-29 16:53:41 EDT
+firebase-converge results — 2026-10-29 16:58:49 EDT
+flag: INCOMPLETE
 setup: ✓ already (python3, curl, gh, git present)
 auth: ✓ applied (service-account token from Downloads JSON)
 step 1 authorized domain private.andrewdhorowitz.com: ✓ already
