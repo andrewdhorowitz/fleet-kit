@@ -1,0 +1,4 @@
+firebase-converge results — 2026-10-29 16:12:46 EDT
+setup: ✓ already (python3, node, firebase-tools, curl present)
+auth: – skipped (no usable Firebase sign-in — run: firebase login --no-localhost)
+summary: INCOMPLETE — one or more steps skipped (see above)
