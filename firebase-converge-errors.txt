@@ -1,4 +1,4 @@
-firebase-converge errors — 2026-10-29 17:09:21 EDT
+firebase-converge errors — 2026-10-29 17:14:53 EDT
 
 == run stderr ==
 
@@ -12,13 +12,13 @@ gh: /data/data/com.termux/files/usr/bin/gh
 git: /data/data/com.termux/files/usr/bin/git
 pkg: /data/data/com.termux/files/usr/bin/pkg
 
-=== 2026-10-29 17:09:12 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
+=== 2026-10-29 17:14:27 EDT POST https://serviceusage.googleapis.com/v1/projects/826159679918/services/apikeys.googleapis.com:enable
 HTTP 403
 -- response body --
 {
   "error": {
     "code": 403,
-    "message": "Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'\nHelp Token: AaVM3aO-5qMRA_UEpeDI-ZbQGFfaOGnCVONfF_m7W5f7_tZCYa8R1VMhpD10_L1mgaQNk-AWIFIcydDEh4w694r_dA5i934J7El_QGXFHPnvyGqm",
+    "message": "Permission denied to enable service [apikeys.googleapis.com]\nHelp Token: AaVM3aPixspVK12GfdYRdRfBTSkH9wNg4jiy0cGMsS4oxslWNO_46s_HIDhF_M8Ts3f0EncHGPYIkZMvfmAZH6A3Co37B86pLGNF3etVhlaSZU2r",
     "status": "PERMISSION_DENIED",
     "details": [
       {
@@ -26,7 +26,43 @@ HTTP 403
         "violations": [
           {
             "type": "googleapis.com",
-            "subject": "?error_code=110002&service=cloudresourcemanager.googleapis.com&permission=serviceusage.apiKeys.list&error_info_id=CiQwMWExODk3ZS1kM2E2LTdhN2EtYjAxYy1mM2RmZjA4ODI3NGESFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODk3ZS1kM2E2LTdhN2EtYjAxYy1mM2RmZjA4ODI3NGESFXByb2plY3RzLzgyNjE1OTY3OTkxOA%253D%253D"
+            "subject": "?error_code=110002&service=serviceusage.googleapis.com&permission=serviceusage.services.enable&error_info_id=CiQwMWExODk4My05ZmM2LTdjZGUtYjMxYi0zY2U4YWNlNDY2NDkSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODk4My05ZmM2LTdjZGUtYjMxYi0zY2U4YWNlNDY2NDkSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t"
+          }
+        ]
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "AUTH_PERMISSION_DENIED",
+        "domain": "serviceusage.googleapis.com",
+        "metadata": {
+          "service": "serviceusage.googleapis.com",
+          "permission": "serviceusage.services.enable",
+          "error_info_id": "CiQwMWExODk4My05ZmM2LTdjZGUtYjMxYi0zY2U4YWNlNDY2NDkSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t",
+          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODk4My05ZmM2LTdjZGUtYjMxYi0zY2U4YWNlNDY2NDkSNXByb2plY3RzLzgyNjE1OTY3OTkxOC9zZXJ2aWNlcy9hcGlrZXlzLmdvb2dsZWFwaXMuY29t"
+        }
+      }
+    ]
+  }
+}
+
+=== 2026-10-29 17:14:27 EDT step 2 self-heal: POST https://serviceusage.googleapis.com/v1/projects/826159679918/services/apikeys.googleapis.com:enable
+HTTP 403
+
+=== 2026-10-29 17:14:47 EDT GET https://apikeys.googleapis.com/v2/projects/family-routines-app/locations/global/keys?pageSize=100
+HTTP 403
+-- response body --
+{
+  "error": {
+    "code": 403,
+    "message": "Permission 'apikeys.keys.list' denied on resource 'projects/family-routines-app/locations/global/keys'\nHelp Token: AaVM3aMIklPeE9wxCvXFfyCtrghqeGYUhjHutP6NlKszCkNiULwTnm8OuwtTx2kXAWzHUGjJsRCvEhJVCCvFWHbb3WrvsZGfCN7IceEiy2B2COwJ",
+    "status": "PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.PreconditionFailure",
+        "violations": [
+          {
+            "type": "googleapis.com",
+            "subject": "?error_code=110002&service=cloudresourcemanager.googleapis.com&permission=serviceusage.apiKeys.list&error_info_id=CiQwMWExODk4My1lZmRiLTcwNjgtYWU5Ny01MGY2Y2Y1ZTBmY2USFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D&troubleshooter_url=https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId%3DCiQwMWExODk4My1lZmRiLTcwNjgtYWU5Ny01MGY2Y2Y1ZTBmY2USFXByb2plY3RzLzgyNjE1OTY3OTkxOA%253D%253D"
           }
         ]
       },
@@ -37,30 +73,9 @@ HTTP 403
         "metadata": {
           "service": "cloudresourcemanager.googleapis.com",
           "permission": "serviceusage.apiKeys.list",
-          "error_info_id": "CiQwMWExODk3ZS1kM2E2LTdhN2EtYjAxYy1mM2RmZjA4ODI3NGESFXByb2plY3RzLzgyNjE1OTY3OTkxOA==",
-          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODk3ZS1kM2E2LTdhN2EtYjAxYy1mM2RmZjA4ODI3NGESFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D"
+          "error_info_id": "CiQwMWExODk4My1lZmRiLTcwNjgtYWU5Ny01MGY2Y2Y1ZTBmY2USFXByb2plY3RzLzgyNjE1OTY3OTkxOA==",
+          "troubleshooter_url": "https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExODk4My1lZmRiLTcwNjgtYWU5Ny01MGY2Y2Y1ZTBmY2USFXByb2plY3RzLzgyNjE1OTY3OTkxOA%3D%3D"
         }
-      }
-    ]
-  }
-}
-
-=== 2026-10-29 17:09:16 EDT PATCH https://firebaserules.googleapis.com/v1/projects/family-routines-app/releases/cloud.firestore?updateMask=rulesetName
-HTTP 400
--- response body --
-{
-  "error": {
-    "code": 400,
-    "message": "Invalid JSON payload received. Unknown name \"rulesetName\": Cannot find field.",
-    "status": "INVALID_ARGUMENT",
-    "details": [
-      {
-        "@type": "type.googleapis.com/google.rpc.BadRequest",
-        "fieldViolations": [
-          {
-            "description": "Invalid JSON payload received. Unknown name \"rulesetName\": Cannot find field."
-          }
-        ]
       }
     ]
   }
