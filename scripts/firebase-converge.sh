@@ -16,6 +16,11 @@
 #      HTTP referrer allowlist (existing referrers preserved). First
 #      attempts one Service Usage enable of the API Keys API itself —
 #      if it is disabled, every step-2 call 403s SERVICE_DISABLED.
+#      If the key list itself is IAM-denied for the service account,
+#      the step is instead verified functionally: a sign-in probe
+#      made with the (public) app key from the private referer
+#      reaches ordinary auth validation only once the referrer is
+#      on the allowlist.
 #   3. Publish the section_access Firestore rules block — only if the
 #      repo rules (routines-and-streaks/firestore.rules) differ from
 #      the live rules by exactly that block; otherwise skip, never
@@ -82,6 +87,7 @@ SECRET_REPO="andrewdhorowitz/fleet-kit"
 DOWNLOADS_GLOB="family-routines-app-firebase-adminsdk*.json"
 
 TOKEN_URL="${FIREBASE_CONVERGE_TOKEN_URL:-https://oauth2.googleapis.com/token}"
+APP_PAGE_URL="${FIREBASE_CONVERGE_APP_PAGE_URL:-https://andrewdhorowitz.github.io/routines-and-streaks/}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -505,8 +511,98 @@ log_step2_skip() {
   fi
 }
 
+# Step-2 functional fallback. The Admin SDK service account can be
+# IAM-denied on apikeys.keys.list even when the API Keys API is
+# enabled, which makes the allowlist unreadable — the step then
+# reports skipped forever, even after the referrer was added by
+# hand in the console. Verify the goal state functionally instead:
+# a sign-in call made with the app key and a Referer of
+# https://private.andrewdhorowitz.com/ is refused with a
+# referer-block message while the referrer is missing, and reaches
+# ordinary auth validation (EMAIL_NOT_FOUND and friends) once it
+# is present. The app key is public — it ships in the web app — so
+# when the key list cannot supply it, read it off the app's
+# published page. A probe that cannot produce a verdict (network
+# failure, 5xx, unparseable body, wrong key) is inconclusive and
+# NEVER counts as achieved. Logs the step's line in every outcome;
+# returns 0 only when the referrer state is verified achieved.
+step2_probe_fallback() {
+  local list_code="$API_CODE" list_body="$API_BODY"
+  local app_key="" page_code probe_code verdict
+  page_code="$(curl -sS -L -o "$WORKDIR/app-page.html" -w '%{http_code}' \
+      "$APP_PAGE_URL" 2>"$WORKDIR/page.err" || echo 000)"
+  page_code="${page_code:0:3}"
+  if [[ "$page_code" == "200" && -f "$WORKDIR/app-page.html" ]]; then
+    app_key="$(grep -oE 'AIza[0-9A-Za-z_-]{35}' "$WORKDIR/app-page.html" 2>/dev/null | head -n 1 || true)"
+  fi
+  if [[ -z "$app_key" ]]; then
+    # Nothing to probe with: today's behavior — the failed list
+    # call stands as the step's result.
+    API_CODE="$list_code"; API_BODY="$list_body"
+    log_step2_skip
+    return 1
+  fi
+  printf '%s' '{"email":"firebase-converge-probe@example.invalid","password":"firebase-converge-probe","returnSecureToken":true}' \
+    > "$WORKDIR/s2-probe.json"
+  local probe_url="https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$app_key"
+  probe_code="$(curl -sS -g -o "$WORKDIR/s2-probe-resp.json" -w '%{http_code}' \
+      -X POST -H 'Content-Type: application/json' \
+      -H "Referer: https://$TARGET_DOMAIN/" \
+      --data-binary "@$WORKDIR/s2-probe.json" "$probe_url" \
+      2>"$WORKDIR/probe.err" || echo 000)"
+  probe_code="${probe_code:0:3}"
+  {
+    echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=REDACTED (step 2 referer probe; the API Keys list call failed with HTTP $list_code)"
+    echo "HTTP $probe_code"
+    if [[ -s "$WORKDIR/probe.err" ]]; then
+      echo "-- curl stderr --"
+      cat "$WORKDIR/probe.err"
+    fi
+    echo "-- response body --"
+    cat "$WORKDIR/s2-probe-resp.json" 2>/dev/null
+    echo ""
+  } >> "$API_ERR_LOG"
+  verdict="$(python3 - "$WORKDIR/s2-probe-resp.json" "$probe_code" <<'PY'
+import json, sys
+code = sys.argv[2]
+msg = None
+try:
+    d = json.load(open(sys.argv[1]))
+    msg = (d.get("error") or {}).get("message") or ""
+except Exception:
+    msg = None
+if msg is not None and ("Requests from referer" in msg or "are blocked" in msg):
+    print("BLOCKED")
+elif msg is not None and "INVALID_API_KEY" in msg:
+    print("INCONCLUSIVE")
+elif code == "200" or (code == "400" and msg):
+    print("ACHIEVED")
+else:
+    print("INCONCLUSIVE")
+PY
+)"
+  case "$verdict" in
+    ACHIEVED)
+      log_line "step 2 api key referrer: ✓ already (verified by referer probe)"
+      return 0 ;;
+    BLOCKED)
+      # Not achieved, and the set path (enable attempt + the list
+      # call above) already failed — report it exactly as today,
+      # remedy text included when it applies.
+      API_CODE="$list_code"; API_BODY="$list_body"
+      log_step2_skip
+      return 1 ;;
+    *)
+      log_line "step 2 api key referrer: – skipped (referer probe inconclusive — HTTP $probe_code from the sign-in probe; the API Keys list call failed with HTTP $list_code)"
+      return 1 ;;
+  esac
+}
+
 # Step 2 — browser API key HTTP referrer allowlist. The app key is the
 # one whose allowlist already carries the app's github.io origin.
+# When the key list itself cannot be read (IAM-denied for the
+# service account), step2_probe_fallback verifies the referrer
+# functionally instead of reporting skipped forever.
 step2() {
   # Self-heal first: if the API Keys API itself is disabled in the
   # project, every call below 403s with SERVICE_DISABLED. One enable
@@ -541,7 +637,9 @@ step2() {
     [[ -n "$page_token" ]] && url="$url&pageToken=$page_token"
     api GET "$url"
     if [[ "$API_CODE" != "200" ]]; then
-      log_step2_skip
+      if step2_probe_fallback; then
+        return
+      fi
       mark_incomplete; return
     fi
     cp "$API_BODY" "$WORKDIR/keypage-$page.json"
