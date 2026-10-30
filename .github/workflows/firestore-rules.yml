@@ -1,0 +1,117 @@
+# Firestore Rules — drift-guarded publish + live probes for the fleet's
+# Firebase project (family-routines-app), via scripts/firestore-rules-tool.mjs.
+#
+# DISPATCH-ONLY: runs exclusively via workflow_dispatch; only someone with
+# write access to this repo can dispatch it. The tool publishes the
+# firestore.rules carried by a checkout of andrewdhorowitz/routines-and-streaks
+# at the chosen ref, and refuses unless the live ruleset still equals that
+# checkout's parent-commit rules (deploy-if-changed, never blind).
+#
+# The service-account JSON comes from the repo secret
+# FIREBASE_SERVICE_ACCOUNT_JSON (stored by scripts/firebase-converge.sh
+# step 5, for exactly this: "so Muse can run future Firebase steps").
+# It is written to a file in $RUNNER_TEMP (outside the checkout),
+# chmod 600, exported as GOOGLE_APPLICATION_CREDENTIALS, and removed in
+# an always() cleanup step. The secret value is never echoed.
+#
+# Results land in firestore-rules-results.txt at this repo's root,
+# committed back by the final step (always()) so a run can be read and
+# fixed from GitHub — the converger contract.
+
+name: Firestore Rules
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "read-live | publish (drift-guarded) | rollback | probe"
+        type: choice
+        required: true
+        default: read-live
+        options:
+          - read-live
+          - publish
+          - rollback
+          - probe
+      routines_ref:
+        description: "routines-and-streaks ref whose firestore.rules is the source (publish: its parent commit is the expected prior)"
+        type: string
+        required: false
+        default: "main"
+      rollback_ruleset:
+        description: "rollback — full ruleset name to re-point the release to"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fleet
+
+      - uses: actions/checkout@v4
+        with:
+          repository: andrewdhorowitz/routines-and-streaks
+          ref: ${{ inputs.routines_ref }}
+          path: routines
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install firebase-admin (script dependency, not saved)
+        working-directory: fleet
+        run: npm install --no-save firebase-admin@14
+
+      - name: Materialize the service-account credential in runner temp
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::Repo secret FIREBASE_SERVICE_ACCOUNT_JSON is not set in andrewdhorowitz/fleet-kit." >&2
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          chmod 600 "$RUNNER_TEMP/sa.json"
+          node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/sa.json","utf8")); if (j.type!=="service_account" || !j.client_email || !j.private_key) { console.error("::error::FIREBASE_SERVICE_ACCOUNT_JSON does not look like a service-account key file."); process.exit(1); } console.log("Credential file OK: service-account JSON parses and carries the expected fields (value not printed).");'
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Run the rules tool
+        working-directory: fleet
+        env:
+          MODE: ${{ inputs.mode }}
+          ROLLBACK_RULESET: ${{ inputs.rollback_ruleset }}
+        run: |
+          set -euo pipefail
+          git -C "$GITHUB_WORKSPACE/routines" show HEAD~1:firestore.rules > "$RUNNER_TEMP/prior.rules" 2>/dev/null || : > "$RUNNER_TEMP/prior.rules"
+          export NEW_RULES="$GITHUB_WORKSPACE/routines/firestore.rules"
+          export PRIOR_RULES="$RUNNER_TEMP/prior.rules"
+          export RESULTS_FILE="$GITHUB_WORKSPACE/fleet/firestore-rules-results.txt"
+          node scripts/firestore-rules-tool.mjs "$MODE"
+
+      - name: Commit the results file
+        if: always()
+        working-directory: fleet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firestore-rules-results.txt
+          if git diff --cached --quiet; then
+            echo "results file unchanged — nothing to commit"
+          else
+            git commit -m "firestore-rules: ${{ inputs.mode }} results"
+            git pull --rebase origin main
+            git push
+          fi
+
+      - name: Remove the temporary credential file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
