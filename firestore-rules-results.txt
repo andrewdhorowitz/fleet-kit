@@ -1,9 +1,9 @@
 firestore-rules tool — mode=probe project=family-routines-app
-when: 2026-10-30T14:19:15.611Z
+when: 2026-10-30T14:21:15.230Z
 probe: throwaway users created; temporary admin seat granted (removed below)
 probe: live page apiKey found (…obvY)
-FAIL probe: exception: IAM Service Account Credentials API has not been used in project 826159679918 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=826159679918 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.; Please refer to https://firebase.google.com/docs/auth/admin/create-custom-tokens for more details on how to use and troubleshoot this feature.
-cleanup: 0 probe document(s) deleted via Admin SDK sweep (plus any already removed)
+FAIL probe: exception: token exchange failed for probe-regular-step1
+cleanup: 1 probe document(s) deleted via Admin SDK sweep (plus any already removed)
 cleanup: temporary admin seat removed
 cleanup: throwaway auth users deleted
 probe: 1 FAILURE(S)
