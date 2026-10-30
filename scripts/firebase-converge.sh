@@ -87,7 +87,7 @@ SECRET_REPO="andrewdhorowitz/fleet-kit"
 DOWNLOADS_GLOB="family-routines-app-firebase-adminsdk*.json"
 
 TOKEN_URL="${FIREBASE_CONVERGE_TOKEN_URL:-https://oauth2.googleapis.com/token}"
-APP_PAGE_URL="${FIREBASE_CONVERGE_APP_PAGE_URL:-https://andrewdhorowitz.github.io/routines-and-streaks/}"
+APP_PAGE_URL="${FIREBASE_CONVERGE_APP_PAGE_URL:-https://routines.andrewdhorowitz.com/}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
