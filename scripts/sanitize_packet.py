@@ -399,7 +399,7 @@ def validate_filled(packet, repo_dir, terms, table):
         if "relocate" in disps and not all(h.get("applied") for h in hs):
             if not src.exists() and not dst.exists():
                 errors.append(f"{path}: relocate source missing and no staged copy exists")
-            if src.exists() and dst.exists():
+            if src.exists() and dst.exists() and not stub_matches(hs, src):
                 errors.append(f"{path}: both the file and its staged copy exist — resolve by hand")
     return errors
 
@@ -426,6 +426,21 @@ def scan_file_hits(path, rel, terms):
     for line_no, line in enumerate(text.splitlines(), 1):
         out.extend(cs.scan_line(line, rel, line_no, terms))
     return out
+
+
+def stub_matches(hs, src):
+    """True when the file at the original path is exactly the stub a
+    relocate hit in this packet specifies — strong evidence an
+    interrupted run already completed the relocation, so it may
+    resume as already-applied instead of an ambiguity refusal."""
+    stub = next((h.get("stub") for h in hs if h.get("stub")), None)
+    if not stub:
+        return False
+    try:
+        content = src.read_text()
+    except OSError:
+        return False
+    return content in (stub, stub + "\n")
 
 
 def plan_actions(packet, repo_dir, terms, table):
@@ -462,9 +477,12 @@ def plan_actions(packet, repo_dir, terms, table):
                 )
         elif disp == "relocate":
             src, dst = root / h["file"], root / relocate_dir / h["file"]
-            # A stub left at the original path makes src exist again —
-            # the packet's applied flag is what marks this done.
-            state = "already" if (h.get("applied") or not src.exists()) else "pending"
+            # A stub left at the original path makes src exist again:
+            # done means the applied flag, a missing source, or the
+            # source being exactly the packet's own stub (resume).
+            done = h.get("applied") or not src.exists() or (
+                dst.exists() and stub_matches([h], src))
+            state = "already" if done else "pending"
             actions.append({"hit": h, "kind": "relocate", "state": state,
                             "shared_file": True})
         elif disp == "except":
