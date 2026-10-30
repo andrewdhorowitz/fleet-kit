@@ -14,6 +14,16 @@ feed runs in the public portfolio's CI, where private repos cannot
 be read), each with the project and source repo it came from, plus
 the source manifest blob SHAs so staleness is checkable at a glance.
 
+It also checks Andrew's visibility-follows-mode rule (Oct 29, 2026):
+a repo's actual GitHub visibility must match the mode its manifest
+declares — public mode means a public repo; a private-tier mode
+(family/owner) means a private repo — and the two fleet repos that
+carry no manifest (private-section, fleet-ci) have their modes
+declared by role below. Mismatches are REPORTED, one line each,
+never fixed here: flipping toward public is an exposure that needs
+Andrew's explicit word per repo, and flipping a Pages-hosted repo
+toward private can take its site offline.
+
 Usage (from a fleet-kit checkout):
     FLEET_PULL_TOKEN=<token> python3 scripts/pull_publish.py [--write]
 
@@ -45,6 +55,15 @@ FLEET_REPOS = [
     "fleet-kit",
     "repo-template",
 ]
+# Fleet repos with no publish.json: their modes are declared by role
+# in the spec (PUBLISH-MANIFEST-SPEC) — private-section is the private
+# consumer/display (it holds the tier logic and the fleet's secrets),
+# fleet-ci is the public host for the shared reusable workflow
+# (public callers can only call public reusable workflows).
+ROLE_MODE_REPOS = {
+    "private-section": "private",
+    "fleet-ci": "public",
+}
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = ROOT / "publish-registry" / "publish.schema.json"
 INDEX_PATH = ROOT / "publish-registry" / "private-hosts.json"
@@ -84,6 +103,32 @@ def pull_manifest(repo_slug, token):
     return manifest, bool(meta.get("private")), doc["sha"]
 
 
+def repo_is_private(repo_slug, token):
+    status, meta = fetch_json(f"{API}/repos/{OWNER_ACCOUNT}/{repo_slug}", token)
+    if status != 200 or not meta:
+        raise SystemExit(
+            f"visibility check failed for {repo_slug}: repo metadata HTTP {status} "
+            "(private repos need FLEET_PULL_TOKEN with contents:read)"
+        )
+    return bool(meta.get("private"))
+
+
+def declared_mode(manifest):
+    """The repo visibility a manifest's declared mode prescribes.
+
+    status "public" -> public repo. Status "private" -> private repo.
+    Status "demo-only" -> private repo: the repo itself holds the
+    private live surface; any public demo is a separate project in
+    its OWN repo, never a reason for this repo to be public. A
+    private-tier section entry (family group or family_visible) also
+    prescribes a private repo, whatever the status says.
+    """
+    section = manifest.get("section") or {}
+    if section.get("family_visible") or section.get("group") == "family":
+        return "private"
+    return "public" if manifest.get("status") == "public" else "private"
+
+
 def main():
     write = "--write" in sys.argv[1:]
     try:
@@ -95,7 +140,8 @@ def main():
 
     hosts = []
     sources = {}
-    print(f"{'repo':28} {'project':22} {'status':9} private  hosts")
+    mismatches = []
+    print(f"{'repo':28} {'project':22} {'status':9} {'mode':8} {'actual':8} hosts")
     for repo_slug in FLEET_REPOS:
         manifest, repo_private, sha = pull_manifest(repo_slug, token)
         jsonschema.validate(manifest, schema)
@@ -105,11 +151,31 @@ def main():
             hosts.append(
                 {"host": raw, "project": manifest["project"], "repo": repo_slug}
             )
+        mode = declared_mode(manifest)
+        actual = "private" if repo_private else "public"
+        if mode != actual:
+            mismatches.append((repo_slug, mode, actual, "manifest"))
         print(
             f"{repo_slug:28} {manifest['project']:22} {manifest['status']:9} "
-            f"{'yes' if repo_private else 'no':8} {len(declared)}"
+            f"{mode:8} {actual:8} {len(declared)}"
         )
     print(f"all {len(FLEET_REPOS)} manifests pulled and schema-valid")
+
+    for repo_slug, mode in ROLE_MODE_REPOS.items():
+        actual = "private" if repo_is_private(repo_slug, token) else "public"
+        if mode != actual:
+            mismatches.append((repo_slug, mode, actual, "role"))
+        print(f"{repo_slug:28} {'(no manifest)':22} {'-':9} {mode:8} {actual:8} -")
+
+    if mismatches:
+        for repo_slug, mode, actual, basis in mismatches:
+            print(
+                f"VISIBILITY MISMATCH: {repo_slug} — declared mode {mode} "
+                f"(by {basis}) but repo is {actual}"
+            )
+    else:
+        total = len(FLEET_REPOS) + len(ROLE_MODE_REPOS)
+        print(f"visibility: all {total} repos match their declared mode")
 
     if write:
         index = {
