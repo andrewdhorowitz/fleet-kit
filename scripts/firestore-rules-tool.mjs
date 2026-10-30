@@ -50,6 +50,7 @@ import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 const PROJECT = 'family-routines-app';
 const RESULTS = process.env.RESULTS_FILE || 'firestore-rules-results.txt';
@@ -271,36 +272,46 @@ async function probe() {
   const created = [];
   try {
     // Throwaway users + temporary admin seat (all removed in finally).
-    // Users carry a per-run password (generated here, never logged) so ID
-    // tokens come from email/password sign-in: custom-token minting needs
-    // the IAM Service Account Credentials API (signBlob), which is disabled
-    // in this project (probe failure, 2026-10-30).
-    const PROBE_PW = 'Probe!' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + '9';
     for (const uid of [REG, ADM]) {
-      const email = `${uid}@example.com`;
-      try {
-        await auth.getUser(uid);
-        await auth.updateUser(uid, { email, password: PROBE_PW });
-      } catch { await auth.createUser({ uid, email, password: PROBE_PW }); }
+      try { await auth.getUser(uid); }
+      catch { await auth.createUser({ uid }); }
     }
     await db.doc(`system_admins/${ADM}`).set({ enabled: true });
     log('probe: throwaway users created; temporary admin seat granted (removed below)');
 
-    // ID tokens via email/password sign-in with the app's public web key,
+    // ID tokens via custom-token exchange with the app's public web key,
     // presenting a referer the key's allowlist accepts (never logged).
+    // The custom token is minted LOCALLY (RS256 JWT signed with the
+    // service-account private key via node crypto): firebase-admin's
+    // createCustomToken routes through the IAM Service Account Credentials
+    // API (signBlob), which is disabled in this project, and email/password
+    // sign-in is disabled too (PASSWORD_LOGIN_DISABLED — Google-only app);
+    // both failures seen live 2026-10-30. Key material is never logged.
     const pageHtml = await (await fetch('https://routines.andrewdhorowitz.com/')).text();
     const keyMatch = pageHtml.match(/apiKey:\s*"([^"]+)"/);
     if (!keyMatch) { fail('probe: could not find apiKey in the live page'); return; }
     const apiKey = keyMatch[1];
     log(`probe: live page apiKey found (…${apiKey.slice(-4)})`);
+    function mintCustomToken(uid) {
+      const sa = JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+      const now = Math.floor(Date.now() / 1000);
+      const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+      const unsigned = `${enc({ alg: 'RS256', typ: 'JWT' })}.${enc({
+        iss: sa.client_email, sub: sa.client_email,
+        aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+        iat: now, exp: now + 3600, uid,
+      })}`;
+      const sig = crypto.createSign('RSA-SHA256').update(unsigned).sign(sa.private_key, 'base64url');
+      return `${unsigned}.${sig}`;
+    }
     async function idToken(uid) {
-      const email = `${uid}@example.com`;
+      const custom = mintCustomToken(uid);
       for (const ref of ['https://routines.andrewdhorowitz.com/', 'https://andrewdhorowitz.github.io/', null]) {
         const headers = { 'Content-Type': 'application/json' };
         if (ref) headers.Referer = ref;
         const res = await fetch(
-          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
-          { method: 'POST', headers, body: JSON.stringify({ email, password: PROBE_PW, returnSecureToken: true }) },
+          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${apiKey}`,
+          { method: 'POST', headers, body: JSON.stringify({ token: custom, returnSecureToken: true }) },
         );
         const j = await res.json().catch(() => null);
         if (res.status === 200 && j?.idToken) {
