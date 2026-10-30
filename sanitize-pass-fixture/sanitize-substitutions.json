@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "substitutions": [
+    {
+      "identifier_hash": "8b366dfba3bf77c0e850402a29d59c703a231fabe8c14a76ffcb7143de9d9bee",
+      "replacement": "kid.coordinator@demo-mail.invalid",
+      "note": "invented stand-in for the fixture address"
+    }
+  ]
+}
