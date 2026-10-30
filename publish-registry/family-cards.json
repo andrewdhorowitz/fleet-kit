@@ -11,6 +11,16 @@
     "site": null
   },
   "section": {
+    "also": [
+      {
+        "blurb": "Public demo of the two-week calendar view the cards render \u2014 invented kids and events; the real cards are the live entry, behind personal codes.",
+        "family_visible": true,
+        "group": "family",
+        "link": "https://andrewdhorowitz.github.io/family-cards-demo/",
+        "name": "Family calendar view \u2014 demo",
+        "status": "demo-only"
+      }
+    ],
     "blurb": "The live tool \u2014 private per-kid schedule cards behind personal codes; each card renders that kid's two-week calendar view. Demo and Repo links are the public demo's (invented kids and events).",
     "family_visible": true,
     "group": "family",
