@@ -1,3 +1,8 @@
-firestore-rules tool — mode=publish project=family-routines-app
-when: 2026-10-30T14:14:06.451Z
-FAIL publish: compile validation failed (HTTP 403, 0 error issue(s)): []
+firestore-rules tool — mode=read-live project=family-routines-app
+when: 2026-10-30T14:15:08.709Z
+live release ruleset: projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+live rules for rollback: PATCH release rulesetName -> projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+NEW_RULES: canonical-equal to live = false
+NEW_RULES: first diff at canonical line 110: live="match /{document=**} {" file="// Error reports (error-reporting Phase 1, Step 1): clients — signed in"
+PRIOR_RULES: canonical-equal to live = true
+read-live: OK
