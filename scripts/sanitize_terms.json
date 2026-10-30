@@ -71,8 +71,10 @@
     "patterns": [
       {
         "id": "amount",
-        "regex": "\\$\\s?\\d[\\d,]*(?:\\.\\d{2})?"
+        "regex": "\\$\\s?(?:\\d{1,3}(?:,\\d{3})+|\\d+\\.\\d{2}|\\d{2,})\\b",
+        "note": "Dollar amounts with cents, comma grouping, or at least two digits. A bare single-digit $N is deliberately not matched: in shell code $1/$2 are positional parameters, not amounts (the false-positive class that tuning round 1 removed). Single-digit prices are the accepted blind spot; category language is still covered by terms."
       }
     ]
-  }
+  },
+  "tuning": "Round 1 (Oct 29, 2026, first fleet-wide run): (1) email candidates on RFC 2606 reserved domains (example.com/.org/.net, any *.invalid) are not hits \u2014 they cannot identify anyone (aimf-protocol's spec examples, the Firebase converger's probe address); implemented in the checker. (2) The amount pattern requires cents, comma grouping, or >= 2 digits so shell positional parameters ($1, $2) stop matching."
 }
