@@ -38,6 +38,11 @@ on:
         type: string
         required: false
         default: "main"
+      prior_ref:
+        description: "routines-and-streaks ref holding the EXPECTED PRIOR firestore.rules (the drift guard's baseline; fetched raw — the repo is public). Blank = fall back to HEAD~1 of the routines checkout."
+        type: string
+        required: false
+        default: ""
       rollback_ruleset:
         description: "rollback — full ruleset name to re-point the release to"
         type: string
@@ -95,9 +100,14 @@ jobs:
         env:
           MODE: ${{ inputs.mode }}
           ROLLBACK_RULESET: ${{ inputs.rollback_ruleset }}
+          PRIOR_REF: ${{ inputs.prior_ref }}
         run: |
           set -euo pipefail
-          git -C "$GITHUB_WORKSPACE/routines" show HEAD~1:firestore.rules > "$RUNNER_TEMP/prior.rules" 2>/dev/null || : > "$RUNNER_TEMP/prior.rules"
+          if [ -n "$PRIOR_REF" ]; then
+            curl -fsSL "https://raw.githubusercontent.com/andrewdhorowitz/routines-and-streaks/$PRIOR_REF/firestore.rules" > "$RUNNER_TEMP/prior.rules" || : > "$RUNNER_TEMP/prior.rules"
+          else
+            git -C "$GITHUB_WORKSPACE/routines" show HEAD~1:firestore.rules > "$RUNNER_TEMP/prior.rules" 2>/dev/null || : > "$RUNNER_TEMP/prior.rules"
+          fi
           export NEW_RULES="$GITHUB_WORKSPACE/routines/firestore.rules"
           export PRIOR_RULES="$RUNNER_TEMP/prior.rules"
           export RESULTS_FILE="$GITHUB_WORKSPACE/fleet/firestore-rules-results.txt"
