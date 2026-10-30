@@ -42,6 +42,21 @@ derivation reads it.
                descriptive only: it feeds nothing, and no gate,
                placement rule, or derivation in this module reads
                it.
+    Freshness  a badge label derived — never hand-set — from the
+               marker's optional release timestamps
+               (`first_released`, `last_released`, ISO dates)
+               against the build/pull date (freshness design,
+               approved Oct 30, 2026). One badge per card, by
+               precedence: a release_state label wins
+               (under_construction, then testing), then "New"
+               (30 days from first release; released projects
+               only), then "Recently updated" (14 days from last
+               release); otherwise None. Like ReleaseState it is
+               display data only: it feeds no property, gate, or
+               placement rule. A manifest carrying no timestamps
+               derives Freshness=None — the badge simply never
+               appears until timestamps are recorded at publish
+               time.
 
 The two non-bypassable rules, with no exception mechanism anywhere
 (ForcePublish was dropped Oct 30, 2026, before ever being built):
@@ -75,6 +90,7 @@ PUBLISH-SCHEMA-V3.md (rewritten as the derivation spec), §2/§4/§6.
 
 import copy
 import json
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,6 +99,14 @@ OVERLAY_PATH = ROOT / "publish-registry" / "sanitize-overlay.json"
 
 # status -> Tier (derivation spec §2).
 TIER_BY_STATUS = {"public": "Public", "private": "Private"}
+# Freshness windows (freshness design, approved Oct 30, 2026):
+# "New" shows for 30 days from a project's first release, "Recently
+# updated" for 14 days from its last release. Boundaries are
+# inclusive: a badge still shows on the last day of its window.
+NEW_WINDOW_DAYS = 30
+UPDATED_WINDOW_DAYS = 14
+# release_state values whose label wins over any freshness badge.
+RELEASE_STATE_LABELS = ("under_construction", "testing")
 # The one status a family_visible manifest may carry (derivation
 # spec §4): Family=True forces Tier=Private.
 PRIVATE_POSTURES = ("private",)
@@ -252,7 +276,64 @@ def sanitized(overlay_entry, manifest_sha):
     return None, None
 
 
-def derive(manifest, overlay_entry=None, manifest_sha=None):
+def _as_date(value):
+    """A date from a manifest timestamp or a build/pull date.
+
+    Accepts a date, a datetime, or an ISO string ("YYYY-MM-DD" or a
+    full ISO datetime); anything else (including None) gives None.
+    Manifest timestamps are recorded at publish time as dates, so a
+    datetime's time-of-day never shifts a badge boundary."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            try:
+                return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+            except ValueError:
+                return None
+    return None
+
+
+def freshness(manifest, on_date=None):
+    """The one freshness badge for a card, or None.
+
+    Derived from the manifest's `first_released` / `last_released`
+    timestamps against `on_date` (the build/pull date; today, UTC,
+    when not given) — computed, so badges appear and expire on
+    their own and nobody removes a stale "New" by hand. Precedence:
+    a release_state label wins (under_construction, then testing),
+    then "New", then "Recently updated". "New" applies only to
+    released projects (release_state == "released"). Timestamps in
+    the future relative to `on_date` earn no badge. A manifest with
+    no usable timestamps derives None.
+    """
+    if not isinstance(manifest, dict):
+        return None
+    state = manifest.get("release_state")
+    if state in RELEASE_STATE_LABELS:
+        return state
+    on = _as_date(on_date) or datetime.now(timezone.utc).date()
+    first = _as_date(manifest.get("first_released"))
+    if state == "released" and first is not None:
+        age = (on - first).days
+        if 0 <= age <= NEW_WINDOW_DAYS:
+            return "New"
+    last = _as_date(manifest.get("last_released"))
+    if last is not None:
+        age = (on - last).days
+        if 0 <= age <= UPDATED_WINDOW_DAYS:
+            return "Recently updated"
+    return None
+
+
+def derive(manifest, overlay_entry=None, manifest_sha=None, on_date=None):
     """The derived property view for one project.
 
     `manifest` is the project's publish.json dict, or None when the
@@ -267,8 +348,11 @@ def derive(manifest, overlay_entry=None, manifest_sha=None):
     section.group value verbatim, or None when the manifest carries
     no section), Family (bool), Sanitized (True|False|None) — plus
     ReleaseState, the marker's release_state carried through
-    verbatim as display data (None when absent); it is data for
-    cards, never an input to the five properties.
+    verbatim as display data (None when absent), and Freshness, the
+    freshness badge derived from the marker's release timestamps
+    against `on_date` (the build/pull date; today when not given)
+    by freshness() above; both are data for cards, never inputs to
+    the five properties.
 
     Raises ValueError on the one forbidden combination (Family=True
     with status "public"): validation reports it first with the
@@ -284,6 +368,7 @@ def derive(manifest, overlay_entry=None, manifest_sha=None):
                 "Family": False,
                 "Sanitized": None,
                 "ReleaseState": None,
+                "Freshness": None,
             },
             [],
         )
@@ -299,6 +384,7 @@ def derive(manifest, overlay_entry=None, manifest_sha=None):
         "Family": section.get("family_visible") is True,
         "Sanitized": value,
         "ReleaseState": manifest.get("release_state"),
+        "Freshness": freshness(manifest, on_date),
     }
     return view, [warning] if warning else []
 
