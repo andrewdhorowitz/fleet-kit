@@ -672,6 +672,11 @@ def cmd_apply(args):
             repo_dir, "checkout", "-b", branch)
     if pending:
         execute_actions(packet, repo_dir, terms, actions)
+    # Commit whatever remediation the tree holds — including edits a
+    # previous run staged but could not commit (e.g. git identity
+    # unset): a closed packet must never point at uncommitted work.
+    git(repo_dir, "add", "-A")
+    if git(repo_dir, "status", "--porcelain").stdout.strip():
         git(repo_dir, "commit", "-m",
             f"Sanitize pass: {packet['repo']} ({len(pending)} hit(s) remediated)")
     commit = git(repo_dir, "rev-parse", "HEAD").stdout.strip()
