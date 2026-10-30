@@ -1,8 +1,31 @@
-firestore-rules tool — mode=publish project=family-routines-app
-when: 2026-10-30T14:29:47.332Z
-publish: compile validation clean (projects.test, no ERROR issues)
-publish: live ruleset before = projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
-publish: drift guard passed (live == expected prior source)
-publish: ruleset created = projects/family-routines-app/rulesets/4b6e6a53-1926-4fe1-9336-63a3b68e4687
-publish: OK — release now serves projects/family-routines-app/rulesets/4b6e6a53-1926-4fe1-9336-63a3b68e4687; live source canonically equals the new repo source
-rollback handle: dispatch mode=rollback with rollback_ruleset=projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+firestore-rules tool — mode=probe project=family-routines-app
+when: 2026-10-30T14:31:04.066Z
+probe: throwaway users created; temporary admin seat granted (removed below)
+probe: live page apiKey found (…obvY)
+probe: token exchange for probe-regular-step1 OK (referer class: routines.andrewdhorowitz.com)
+probe: token exchange for probe-admin-step1 OK (referer class: routines.andrewdhorowitz.com)
+PASS probe 1a signed-out create (exact shape): HTTP 200 (want 200)
+PASS probe 1b signed-out create (operation null, recovered "pending"): HTTP 200 (want 200)
+PASS probe 2a malformed create (extra key): HTTP 403 (want 403)
+PASS probe 2b malformed create (tier 3): HTTP 403 (want 403)
+PASS probe 2c malformed create (wrong site): HTTP 403 (want 403)
+FAIL probe 2d malformed create (missing key): HTTP 200 (want 403)
+PASS probe 2e malformed create (tier as string): HTTP 403 (want 403)
+PASS probe 3a signed-out list error_reports: HTTP 403 (want 403)
+PASS probe 3b regular user GET error_reports doc: HTTP 403 (want 403)
+PASS probe 3c regular user LIST error_reports: HTTP 403 (want 403)
+PASS probe 3d regular user DELETE error_reports doc: HTTP 403 (want 403)
+PASS probe 3e signed-out UPDATE error_reports doc: HTTP 403 (want 403)
+PASS probe 3f admin GET error_reports doc: HTTP 200 (want 200)
+PASS probe 3g admin LIST error_reports: HTTP 200 (want 200)
+PASS probe 3h admin DELETE error_reports doc: HTTP 200 (want 200)
+PASS probe R unauthenticated GET families/default/tasks: HTTP 403 (want 403)
+PASS probe R unauthenticated GET families/default/members: HTTP 403 (want 403)
+PASS probe R unauthenticated GET audit_logs: HTTP 403 (want 403)
+PASS probe R unauthenticated GET system_admins: HTTP 403 (want 403)
+PASS probe R unauthenticated GET global_config/system_defaults: HTTP 403 (want 403)
+PASS probe R unauthenticated GET section_access/probe@example.com: HTTP 403 (want 403)
+cleanup: 5 probe document(s) deleted via Admin SDK sweep (plus any already removed)
+cleanup: temporary admin seat removed
+cleanup: throwaway auth users deleted
+probe: 1 FAILURE(S)
