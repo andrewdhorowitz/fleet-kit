@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "about": "Term lists for scripts/check_sanitize.py \u2014 the fleet's sanitization gate for public/demo surfaces (Andrew's rule, Oct 29, 2026: public and generic, or it falls back to owner-only). This is the ONE file to maintain. Identifier values are stored as SHA-256 hashes of their normalized forms (lowercase, whitespace-collapsed; phrases hashed as their token sequence) because fleet-kit is a PUBLIC repo \u2014 the same reason family-cards-demo's CI uses generic PII shapes instead of a names list: a forbidden-names list committed in plaintext would itself publish the identifiers. To add an identifier, run: check_sanitize.py --hash-term \"<term or email>\" and paste the digest into the right list. Topic terms are generic category vocabulary (plus two specific service names that already appear in public CI), so they stay plaintext and readable. The allowlist is Andrew's own public identity \u2014 public on purpose \u2014 also plaintext; matching text is masked before scanning.",
+  "allowlist_patterns": [
+    "hello@andrewdhorowitz\\.com",
+    "andrewdhorowitz3@gmail\\.com",
+    "andrew\\s+horowitz",
+    "andrewdhorowitz"
+  ],
+  "identifiers": {
+    "hashed_terms": {
+      "name": [
+        "e1fc45f7880e0505ff0b6a079b9af149f225e260f59b1d20225357a8cce8ffd8",
+        "299d6631d639256a762b81ee007deb44cdd1cbc983e025038e113a0e709d3f7b",
+        "8c4fd8b2c24ffcc223dbf09088bd79734e8404cd4d9e90fc418ecb490622d1ca",
+        "f5271fc557c751e3c71d706b1de7de1a079faf83bdbbf41e3374567763bae505"
+      ],
+      "place": [
+        "b6d83c45fdab4abcefcb44ffd8720920c2f4b1d1e8b3660f495992b4358a6f61",
+        "96a13cbfe5224db4cbd3113c1ed07cd637790119cc8904a1e3d618e407909996",
+        "7708cbb272478ed580c40add14bcd9f34c2446e93af8c4e2c9cc68556455055e",
+        "54615b7f3472a31fe730eacb78b1c7ba084f3bc95e21b22754d94ad91c4c9fb7",
+        "4845f3c9f1ce470ffc3bb82f95da22762eba389bf70a79c996f8350f3a6f6354",
+        "163e647ec96787171c93f18da68c830a3e6539326eafc8e8ba04d05979068f3e",
+        "d523c11dd727586dd0ce27d3b10367472670c08accaefadc8d964f67eb9ab782",
+        "6a43cfbb03631c068f3e233f710cefe4c1ad562eeb57a7ad89461962eb3d97b7",
+        "45f250576a4900d636fd63ca31a923bd38535247072da2e43e6e17b821bd23a4"
+      ]
+    },
+    "hashed_emails": [
+      "90d727253d82aff746bc07590569c81d8e37f88ded7d5ad0908217c11f7ffed6",
+      "5929372927e6d2273347b4292f87a83dcbceb23cc3b21bc17f615272d9b635ed",
+      "767b3a3844f4fdc1593aa5c21bfb131fad9e9bd886ccd17ea0c7830707ecac06"
+    ]
+  },
+  "topics": {
+    "terms": [
+      "therapy",
+      "therapist",
+      "psychotherapy",
+      "psychiatrist",
+      "psychiatric",
+      "support group",
+      "high focus",
+      "creating smiles",
+      "medical",
+      "diagnosis",
+      "diagnosed",
+      "medication",
+      "medications",
+      "prescription",
+      "colonoscopy",
+      "pharmacy",
+      "dental",
+      "dentist",
+      "orthodontist",
+      "orthodontics",
+      "custody",
+      "divorce",
+      "alimony",
+      "child support",
+      "attorney",
+      "lawsuit",
+      "court order",
+      "disability",
+      "social security",
+      "bank account",
+      "account number",
+      "routing number"
+    ],
+    "patterns": [
+      {
+        "id": "amount",
+        "regex": "\\$\\s?\\d[\\d,]*(?:\\.\\d{2})?"
+      }
+    ]
+  }
+}
