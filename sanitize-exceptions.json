@@ -7,6 +7,16 @@
         "amount"
       ],
       "reason": "Vendor pricing figures for third-party services (Sentry, Cloudflare, ua-parser-js license tiers) in a library-selection comparison \u2014 public pricing of other companies' products, not the owner's financial data."
+    },
+    {
+      "path": "scripts/test_sanitize_pass.py",
+      "class": "topic",
+      "terms": [
+        "therapy",
+        "diagnosis",
+        "support group"
+      ],
+      "reason": "Synthetic fixture strings for the sanitize-pass end-to-end check \u2014 invented content that exists to prove the packet/apply/re-gate path works, the same pattern as the demo's filter fixtures. No real data; the fixture's identifier value is assembled from parts at runtime and never appears in this repo."
     }
   ]
 }
