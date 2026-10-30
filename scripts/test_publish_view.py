@@ -9,7 +9,10 @@ Covers, against the fleet schema (publish-registry/publish.schema.json):
   2026; the blurbs of the two private repos are placeholders —
   derivation never reads prose, and private-repo text does not get
   copied into this public repo);
-- demo-only deriving to Tier=Private;
+- `release_state` carried through the view as display data only:
+  it never changes Publish/Tier/Family/Sanitized, a manifest
+  without one derives ReleaseState=None, and a value outside the
+  enum (including the dropped "demo") fails validation;
 - the Family rule: family_visible with status "public" fails
   validation with the rule named, and derive() refuses it; with a
   private posture it validates and derives Tier=Private;
@@ -50,7 +53,7 @@ def check(cond, msg):
         print("  FAIL — " + msg)
 
 
-def manifest(project, status, group, family_visible, also=None):
+def manifest(project, status, group, family_visible, also=None, release_state=None):
     section = {
         "include": True,
         "group": group,
@@ -59,40 +62,75 @@ def manifest(project, status, group, family_visible, also=None):
     }
     if also is not None:
         section["also"] = also
-    return {
+    m = {
         "project": project,
         "status": status,
         "public_urls": {"site": None, "demo": None, "docs": None, "interactive": None},
         "private_hosts": [],
         "section": section,
     }
+    if release_state is not None:
+        m["release_state"] = release_state
+    return m
 
 
 # The seven real manifests, derivation-relevant fields (Oct 30, 2026).
 REAL = {
     "andrewdhorowitz.github.io": (
         manifest("andrewdhorowitz.com", "public", "projects", False),
-        {"Publish": True, "Tier": "Public", "Shelf": "projects", "Family": False},
+        {
+            "Publish": True,
+            "Tier": "Public",
+            "Shelf": "projects",
+            "Family": False,
+            "ReleaseState": None,
+        },
         "public",
     ),
     "routines-and-streaks": (
-        manifest("Routines & Streaks", "public", "projects", False),
-        {"Publish": True, "Tier": "Public", "Shelf": "projects", "Family": False},
+        manifest(
+            "Routines & Streaks", "public", "projects", False, release_state="testing"
+        ),
+        {
+            "Publish": True,
+            "Tier": "Public",
+            "Shelf": "projects",
+            "Family": False,
+            "ReleaseState": "testing",
+        },
         "public",
     ),
     "aimf-protocol": (
         manifest("AIMF", "public", "projects", False),
-        {"Publish": True, "Tier": "Public", "Shelf": "projects", "Family": False},
+        {
+            "Publish": True,
+            "Tier": "Public",
+            "Shelf": "projects",
+            "Family": False,
+            "ReleaseState": None,
+        },
         "public",
     ),
     "family-cards-demo": (
         manifest("Family Cards Demo", "public", "projects", False),
-        {"Publish": True, "Tier": "Public", "Shelf": "projects", "Family": False},
+        {
+            "Publish": True,
+            "Tier": "Public",
+            "Shelf": "projects",
+            "Family": False,
+            "ReleaseState": None,
+        },
         "public",
     ),
     "family-cards": (
-        manifest("Family Cards", "demo-only", "family", True),
-        {"Publish": True, "Tier": "Private", "Shelf": "family", "Family": True},
+        manifest("Family Cards", "private", "family", True, release_state="testing"),
+        {
+            "Publish": True,
+            "Tier": "Private",
+            "Shelf": "family",
+            "Family": True,
+            "ReleaseState": "testing",
+        },
         "private",
     ),
     "fleet-kit": (
@@ -102,6 +140,7 @@ REAL = {
             "Tier": "Public",
             "Shelf": "shared-infrastructure",
             "Family": False,
+            "ReleaseState": None,
         },
         "public",
     ),
@@ -112,6 +151,7 @@ REAL = {
             "Tier": "Private",
             "Shelf": "shared-infrastructure",
             "Family": False,
+            "ReleaseState": None,
         },
         "private",
     ),
@@ -147,8 +187,6 @@ for repo, (m, expected, mode) in REAL.items():
     )
 
 print("== Tier derivation ==")
-view, _ = pv.derive(manifest("Demo Only", "demo-only", "projects", False))
-check(view["Tier"] == "Private", "demo-only derives to Tier=Private")
 view, _ = pv.derive(manifest("Plain Private", "private", "projects", False))
 check(view["Tier"] == "Private", "private derives to Tier=Private")
 view, _ = pv.derive(None)
@@ -160,6 +198,7 @@ check(
         "Shelf": None,
         "Family": False,
         "Sanitized": None,
+        "ReleaseState": None,
     },
     "no marker at all derives Publish=False and nothing else",
 )
@@ -183,7 +222,7 @@ try:
     check(False, "derive() refuses family_visible + status public")
 except ValueError as e:
     check("Family rule" in str(e), "derive() refuses family_visible + status public")
-for posture in ("demo-only", "private"):
+for posture in ("private",):
     ok = manifest("Good Combo", posture, "family", True)
     check(
         pv.validate(ok, SCHEMA) == [],
@@ -194,6 +233,43 @@ for posture in ("demo-only", "private"):
         view["Family"] is True and view["Tier"] == "Private",
         f"family_visible + status {posture} derives Family=True, Tier=Private",
     )
+
+print("== release_state: display data only ==")
+base = manifest("Lifecycle", "public", "projects", False)
+variants = [base] + [
+    manifest("Lifecycle", "public", "projects", False, release_state=state)
+    for state in ("under_construction", "testing", "released")
+]
+views = [pv.derive(v, fresh_entry("pass"), SHA)[0] for v in variants]
+check(
+    views[0]["ReleaseState"] is None,
+    "a marker without release_state derives ReleaseState=None",
+)
+for state, view in zip(("under_construction", "testing", "released"), views[1:]):
+    check(
+        view["ReleaseState"] == state,
+        f"release_state {state!r} is carried through verbatim",
+    )
+core = [
+    {k: v[k] for k in ("Publish", "Tier", "Family", "Sanitized")} for v in views
+]
+check(
+    all(c == core[0] for c in core),
+    "release_state never changes Publish/Tier/Family/Sanitized (independence)",
+)
+check(
+    pv.validate(variants[2], SCHEMA) == [],
+    "a manifest with a valid release_state validates",
+)
+gone = manifest("Gone Value", "public", "projects", False, release_state="demo")
+check(
+    pv.validate(gone, SCHEMA) != [],
+    "release_state 'demo' fails validation (value dropped Oct 30, 2026)",
+)
+check(
+    pv.find_unknown_keys(variants[1], SCHEMA) == [],
+    "release_state is a declared key, not drift",
+)
 
 print("== Sanitized hard rule ==")
 public_m = manifest("Public Thing", "public", "projects", False)
@@ -282,6 +358,11 @@ check(
 )
 bad_status = manifest("Bad Status", "weird", "projects", False)
 check(pv.validate(bad_status, SCHEMA) != [], "an unknown status fails validation")
+old_status = manifest("Old Status", "demo-only", "projects", False)
+check(
+    pv.validate(old_status, SCHEMA) != [],
+    "status 'demo-only' fails validation (value removed Oct 30, 2026)",
+)
 
 print()
 if FAILURES:

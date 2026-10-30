@@ -8,15 +8,16 @@ the five properties are computed from the existing fields by this
 module — in fleet-kit, the shared layer, written once — so every
 consumer (the pull tool, the private-section generator, the public
 page build, the gates, the owner editor) reads the same view and no
-second derivation can drift from it.
+second derivation can drift from it. One stored attribute,
+`release_state`, is carried through the view verbatim as display
+data (see ReleaseState below); it is not a sixth property and no
+derivation reads it.
 
     Publish    marker presence — True iff the repo carries
                publish.json at its root. (There is no stored publish
                bit; Publish=False is encoded as status "private".)
     Tier       from `status`: "public" -> Public; "private" ->
-               Private; "demo-only" -> Private (its live surface
-               lives on the private section; a public demo is a
-               separate project with its own manifest).
+               Private.
     Shelf      `section.group`, verbatim: projects | family |
                shared-infrastructure. This IS the content category —
                one axis, the spec's existing wording (category
@@ -31,8 +32,16 @@ second derivation can drift from it.
                a result applies only when the overlay's recorded
                manifest SHA matches the manifest just pulled; a
                stale result is ignored (Sanitized=None) with a
-               warning. Repos the gate does not scan (demo-only /
-               private postures) have no result: Sanitized=None.
+               warning. Repos the gate does not scan (private
+               postures) have no result: Sanitized=None.
+    ReleaseState
+               the marker's `release_state`, verbatim
+               (under_construction | testing | released), or None
+               when the marker carries none. Lifecycle data for
+               cards to display (spec addendum, Oct 30, 2026) —
+               descriptive only: it feeds nothing, and no gate,
+               placement rule, or derivation in this module reads
+               it.
 
 The two non-bypassable rules, with no exception mechanism anywhere
 (ForcePublish was dropped Oct 30, 2026, before ever being built):
@@ -72,11 +81,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = ROOT / "publish-registry" / "publish.schema.json"
 OVERLAY_PATH = ROOT / "publish-registry" / "sanitize-overlay.json"
 
-# status -> Tier. demo-only derives to Private: the project's live
-# surface lives on the private section (derivation spec §2).
-TIER_BY_STATUS = {"public": "Public", "private": "Private", "demo-only": "Private"}
-# Statuses a family_visible manifest may carry (derivation spec §4).
-PRIVATE_POSTURES = ("private", "demo-only")
+# status -> Tier (derivation spec §2).
+TIER_BY_STATUS = {"public": "Public", "private": "Private"}
+# The one status a family_visible manifest may carry (derivation
+# spec §4): Family=True forces Tier=Private.
+PRIVATE_POSTURES = ("private",)
 
 
 def load_schema():
@@ -167,10 +176,10 @@ def family_rule_error(manifest):
     """The Family rule (derivation spec §4), stated plainly, or None.
 
     section.family_visible: true requires a private posture —
-    "private" or "demo-only" (both derive Tier=Private). Alongside
-    status "public" the combination is forbidden: the forcing
-    resolves toward private, never toward public, and it is an error
-    to fix in the manifest, not a state to repair in flight.
+    status "private" (Tier=Private). Alongside status "public" the
+    combination is forbidden: the forcing resolves toward private,
+    never toward public, and it is an error to fix in the manifest,
+    not a state to repair in flight.
     """
     if not isinstance(manifest, dict):
         return None
@@ -179,7 +188,7 @@ def family_rule_error(manifest):
         return (
             "Family rule: section.family_visible is true but status is "
             '"public" — Family=True forces Tier=Private, so status must '
-            'be "private" or "demo-only" (derivation spec §4)'
+            'be "private" (derivation spec §4)'
         )
     return None
 
@@ -222,9 +231,9 @@ def sanitized(overlay_entry, manifest_sha):
 
     True/False only for a FRESH in-scope gate result; None when the
     gate has no applicable result — no entry, an out-of-scope
-    posture (demo-only/private content is not a public/demo
-    surface), or a stale entry, which is ignored with a warning,
-    exactly as the section generator treats it.
+    posture (private content is not a public/demo surface), or a
+    stale entry, which is ignored with a warning, exactly as the
+    section generator treats it.
     """
     if overlay_entry is None:
         return None, None
@@ -253,10 +262,13 @@ def derive(manifest, overlay_entry=None, manifest_sha=None):
     `manifest_sha` the blob SHA of the manifest just pulled, for the
     overlay freshness check.
 
-    Returns (view, warnings): view has exactly the five properties —
+    Returns (view, warnings): view has the five properties —
     Publish (bool), Tier ("Public"|"Private"), Shelf (the
     section.group value verbatim, or None when the manifest carries
-    no section), Family (bool), Sanitized (True|False|None).
+    no section), Family (bool), Sanitized (True|False|None) — plus
+    ReleaseState, the marker's release_state carried through
+    verbatim as display data (None when absent); it is data for
+    cards, never an input to the five properties.
 
     Raises ValueError on the one forbidden combination (Family=True
     with status "public"): validation reports it first with the
@@ -271,6 +283,7 @@ def derive(manifest, overlay_entry=None, manifest_sha=None):
                 "Shelf": None,
                 "Family": False,
                 "Sanitized": None,
+                "ReleaseState": None,
             },
             [],
         )
@@ -285,6 +298,7 @@ def derive(manifest, overlay_entry=None, manifest_sha=None):
         "Shelf": section.get("group"),
         "Family": section.get("family_visible") is True,
         "Sanitized": value,
+        "ReleaseState": manifest.get("release_state"),
     }
     return view, [warning] if warning else []
 

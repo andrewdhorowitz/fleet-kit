@@ -29,9 +29,10 @@ toward private can take its site offline.
 
 Since Oct 30, 2026 it also runs the fleet's ONE derivation function
 (scripts/publish_view.py) over every manifest: the derived property
-view — Publish, Tier, Shelf, Family, Sanitized — is printed per
-repo, and with --write it is recorded in the generated index beside
-the hosts, so downstream consumers read the view from one shape
+view — Publish, Tier, Shelf, Family, Sanitized, plus the
+ReleaseState display data — is printed per repo, and with --write
+it is recorded in the generated index beside the hosts, so
+downstream consumers read the view from one shape
 (derivation spec §7). Validation runs through the same module: the
 Family rule (Family=True forces Tier=Private) fails closed with the
 rule named, and keys the schema does not declare are reported as
@@ -140,10 +141,7 @@ def declared_mode(manifest):
     Tier=Public prescribes a public repo — unless the entry is a
     private-tier one (Shelf=family or Family=True), which prescribes
     a private repo whatever the status says. Every other posture
-    prescribes private: status "private", and status "demo-only"
-    (the repo itself holds the private live surface; any public demo
-    is a separate project in its OWN repo, never a reason for this
-    repo to be public).
+    (status "private") prescribes a private repo.
     """
     view, _warnings = publish_view.derive(manifest)
     if view["Tier"] == "Public" and view["Shelf"] != "family" and not view["Family"]:
@@ -200,7 +198,8 @@ def main():
             f"{mode:8} {actual:8} {len(declared)}  "
             f"Publish={view['Publish']} Tier={view['Tier']} "
             f"Shelf={view['Shelf']} Family={view['Family']} "
-            f"Sanitized={view['Sanitized']}"
+            f"Sanitized={view['Sanitized']} "
+            f"ReleaseState={view['ReleaseState']}"
         )
     print(f"all {len(FLEET_REPOS)} manifests pulled and schema-valid")
 
@@ -228,10 +227,11 @@ def main():
                 "repo's own publish.json — do not edit by hand. Contains "
                 "the declared-private host strings for the portfolio "
                 "publish gate, plus each repo's derived property view "
-                "(Publish/Tier/Shelf/Family/Sanitized, computed by "
-                "scripts/publish_view.py from the same manifests and "
-                "the sanitize overlay); the manifests themselves live "
-                "in their own repos and are pulled from there."
+                "(Publish/Tier/Shelf/Family/Sanitized plus ReleaseState "
+                "display data, computed by scripts/publish_view.py from "
+                "the same manifests and the sanitize overlay); the "
+                "manifests themselves live in their own repos and are "
+                "pulled from there."
             ),
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "sources": sources,
