@@ -1,8 +1,18 @@
-firestore-rules tool — mode=read-live project=family-routines-app
-when: 2026-10-30T14:15:08.709Z
-live release ruleset: projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
-live rules for rollback: PATCH release rulesetName -> projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
-NEW_RULES: canonical-equal to live = false
-NEW_RULES: first diff at canonical line 110: live="match /{document=**} {" file="// Error reports (error-reporting Phase 1, Step 1): clients — signed in"
-PRIOR_RULES: canonical-equal to live = true
-read-live: OK
+firestore-rules tool — mode=publish project=family-routines-app
+when: 2026-10-30T14:18:09.649Z
+publish: projects.test advisory — HTTP 403, 0 ERROR issues; body: {
+  "error": {
+    "code": 403,
+    "message": "The caller does not have permission",
+    "status": "PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "IAM_PERMISSION_DENIED",
+        "domain": "iam.googleapis.com",
+        "m; proceeding (ruleset create is the compile gate)
+publish: live ruleset before = projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+publish: drift guard passed (live == expected prior source)
+publish: ruleset created = projects/family-routines-app/rulesets/e4db7e3d-42d7-4237-b9c9-4522d25330a6
+publish: OK — release now serves projects/family-routines-app/rulesets/e4db7e3d-42d7-4237-b9c9-4522d25330a6; live source canonically equals the new repo source
+rollback handle: dispatch mode=rollback with rollback_ruleset=projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
