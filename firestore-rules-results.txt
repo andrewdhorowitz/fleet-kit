@@ -1,9 +1,4 @@
-firestore-rules tool — mode=probe project=family-routines-app
-when: 2026-10-30T14:21:15.230Z
-probe: throwaway users created; temporary admin seat granted (removed below)
-probe: live page apiKey found (…obvY)
-FAIL probe: exception: token exchange failed for probe-regular-step1
-cleanup: 1 probe document(s) deleted via Admin SDK sweep (plus any already removed)
-cleanup: temporary admin seat removed
-cleanup: throwaway auth users deleted
-probe: 1 FAILURE(S)
+firestore-rules tool — mode=rollback project=family-routines-app
+when: 2026-10-30T14:27:09.692Z
+rollback: live ruleset before = projects/family-routines-app/rulesets/e4db7e3d-42d7-4237-b9c9-4522d25330a6; target = projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+rollback: OK — release now serves projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
