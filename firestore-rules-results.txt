@@ -1,4 +1,8 @@
-firestore-rules tool — mode=rollback project=family-routines-app
-when: 2026-10-30T14:27:09.692Z
-rollback: live ruleset before = projects/family-routines-app/rulesets/e4db7e3d-42d7-4237-b9c9-4522d25330a6; target = projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
-rollback: OK — release now serves projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+firestore-rules tool — mode=read-live project=family-routines-app
+when: 2026-10-30T14:28:58.299Z
+live release ruleset: projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+live rules for rollback: PATCH release rulesetName -> projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
+NEW_RULES: canonical-equal to live = false
+NEW_RULES: first diff at canonical line 110: live="match /{document=**} {" file="// Error reports (error-reporting Phase 1, Step 1): clients — signed in"
+PRIOR_RULES: canonical-equal to live = true
+read-live: OK
