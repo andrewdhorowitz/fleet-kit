@@ -199,7 +199,8 @@ def main():
             f"Publish={view['Publish']} Tier={view['Tier']} "
             f"Shelf={view['Shelf']} Family={view['Family']} "
             f"Sanitized={view['Sanitized']} "
-            f"ReleaseState={view['ReleaseState']}"
+            f"ReleaseState={view['ReleaseState']} "
+            f"Freshness={view['Freshness']}"
         )
     print(f"all {len(FLEET_REPOS)} manifests pulled and schema-valid")
 
@@ -228,7 +229,8 @@ def main():
                 "the declared-private host strings for the portfolio "
                 "publish gate, plus each repo's derived property view "
                 "(Publish/Tier/Shelf/Family/Sanitized plus ReleaseState "
-                "display data, computed by scripts/publish_view.py from "
+                "and Freshness display data, computed by "
+                "scripts/publish_view.py from "
                 "the same manifests and the sanitize overlay); the "
                 "manifests themselves live in their own repos and are "
                 "pulled from there."
