@@ -61,7 +61,17 @@ SKIP_EXTS = {
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".woff", ".woff2",
     ".ttf", ".eot", ".zip", ".gz", ".mp4", ".webp", ".avif", ".lock",
 }
-SKIP_DIRS = {"node_modules", "__pycache__"}
+SKIP_DIRS = {
+    "node_modules",
+    "__pycache__",
+    # The sanitize pass's relocation staging (scripts/sanitize_packet.py):
+    # content whose disposition is `relocate` is git-mv'd here, off the
+    # served surface, pending its move behind the gate or deletion.
+    # The exclusion is a named, visible decision (see the spec's
+    # sanitize-pass addendum) — staged content in a public repo is
+    # still IN a public repo, merely off-surface; it is not secret.
+    "private-staging",
+}
 SELF_FILES = {
     "sanitize_terms.json",
     "check_sanitize.py",
@@ -125,6 +135,11 @@ class Hit:
         self.path, self.line_no, self.kind = path, line_no, kind
         self.term, self.label, self.quote = term, label, quote
         self.exception_reason = None
+        # Character span of the match within its line (start, end).
+        # Set by scan_line; consumed by fleet-kit's sanitize pass
+        # (scripts/sanitize_packet.py) for anchored replacements.
+        self.start = None
+        self.end = None
 
     def render(self):
         return f"{self.path}:{self.line_no}  [{self.label}]  …{self.quote}…"
@@ -172,10 +187,12 @@ def scan_line(line, path, line_no, terms):
         spans.append((r[0], r[1]))
         kept.append(r)
     kept.sort(key=lambda r: r[0])
-    return [
-        Hit(path, line_no, kind, term, label, quote_window(line, start, end))
-        for start, end, kind, term, label in kept
-    ]
+    out = []
+    for start, end, kind, term, label in kept:
+        hit = Hit(path, line_no, kind, term, label, quote_window(line, start, end))
+        hit.start, hit.end = start, end
+        out.append(hit)
+    return out
 
 
 def iter_files(root):
