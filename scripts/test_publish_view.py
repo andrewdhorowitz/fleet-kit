@@ -23,6 +23,14 @@ Covers, against the fleet schema (publish-registry/publish.schema.json):
   and never read by the derivation — a hand-set `sanitized` key
   cannot manufacture Sanitized=True or override the overlay;
 - the pre-existing Shared Infrastructure rule still enforced;
+- freshness badges (design approved Oct 30, 2026): derived by
+  publish_view.freshness() from the manifest timestamps
+  `first_released` / `last_released` against a fixed build date —
+  release_state labels win, then "New" (30 days from first release,
+  released projects only), then "Recently updated" (14 days from
+  last release); no timestamps derives no badge, a hand-set badge
+  is inert unknown-key drift, and freshness never feeds the five
+  properties;
 - declared_mode() in the pull tool agreeing with the view for all
   seven repos (the mode projection did not change meaning).
 
@@ -53,7 +61,16 @@ def check(cond, msg):
         print("  FAIL — " + msg)
 
 
-def manifest(project, status, group, family_visible, also=None, release_state=None):
+def manifest(
+    project,
+    status,
+    group,
+    family_visible,
+    also=None,
+    release_state=None,
+    first_released=None,
+    last_released=None,
+):
     section = {
         "include": True,
         "group": group,
@@ -71,6 +88,10 @@ def manifest(project, status, group, family_visible, also=None, release_state=No
     }
     if release_state is not None:
         m["release_state"] = release_state
+    if first_released is not None:
+        m["first_released"] = first_released
+    if last_released is not None:
+        m["last_released"] = last_released
     return m
 
 
@@ -199,6 +220,7 @@ check(
         "Family": False,
         "Sanitized": None,
         "ReleaseState": None,
+        "Freshness": None,
     },
     "no marker at all derives Publish=False and nothing else",
 )
@@ -347,6 +369,100 @@ view, _ = pv.derive(weird, fresh_entry("pass"), SHA)
 check(
     view["Sanitized"] is True,
     "the overlay decides Sanitized even when a hand-set key says otherwise",
+)
+
+
+print("== Freshness badges: derived, precedence, windows ==")
+BUILD = "2026-10-30"  # fixed build/pull date for every check below
+
+def fresh(**kw):
+    return pv.freshness(manifest("Fresh", "public", "projects", False, **kw), BUILD)
+
+check(
+    fresh(release_state="released", first_released="2026-10-10", last_released="2026-10-10")
+    == "New",
+    "released 20 days ago -> New",
+)
+check(
+    fresh(release_state="released", first_released="2026-09-30") == "New",
+    "first release exactly 30 days before the build date -> New (window inclusive)",
+)
+check(
+    fresh(release_state="released", first_released="2026-09-29", last_released="2026-10-25")
+    == "Recently updated",
+    "first release 31 days ago (New expired) + last release 5 days ago -> Recently updated",
+)
+check(
+    fresh(release_state="released", first_released="2026-01-01", last_released="2026-10-16")
+    == "Recently updated",
+    "last release exactly 14 days before the build date -> Recently updated (window inclusive)",
+)
+check(
+    fresh(release_state="released", first_released="2026-01-01", last_released="2026-10-15")
+    is None,
+    "last release 15 days ago -> no badge (window expired on its own)",
+)
+check(
+    fresh(release_state="testing", first_released="2026-10-29", last_released="2026-10-29")
+    == "testing",
+    "precedence: release_state 'testing' wins over a would-be New badge",
+)
+check(
+    fresh(release_state="under_construction", last_released="2026-10-29")
+    == "under_construction",
+    "precedence: release_state 'under_construction' wins over a would-be Recently updated",
+)
+check(
+    fresh(first_released="2026-10-29", last_released="2026-01-01") is None,
+    "'New' applies only to released projects: no release_state, fresh first_released -> no New",
+)
+check(
+    fresh(first_released="2026-01-01", last_released="2026-10-28") == "Recently updated",
+    "no release_state + last release 2 days ago -> Recently updated",
+)
+check(
+    fresh(release_state="released") is None,
+    "a manifest with no timestamps derives no badge (the seven real manifests today)",
+)
+check(
+    fresh(release_state="released", first_released="2026-11-05", last_released="2026-11-05")
+    is None,
+    "timestamps after the build date earn no badge",
+)
+check(
+    fresh(release_state="released", first_released="not-a-date", last_released="2026-10-28")
+    == "Recently updated",
+    "an unparseable first_released is ignored, not fatal; last_released still derives",
+)
+timed = manifest(
+    "Timed", "public", "projects", False,
+    release_state="released", first_released="2026-10-10", last_released="2026-10-10",
+)
+check(pv.validate(timed, SCHEMA) == [], "a manifest carrying both timestamps validates")
+check(
+    pv.find_unknown_keys(timed, SCHEMA) == [],
+    "first_released / last_released are declared keys, not drift",
+)
+view, _ = pv.derive(timed, fresh_entry("pass"), SHA, on_date=BUILD)
+check(view["Freshness"] == "New", "derive() carries Freshness from the same timestamps")
+plain = manifest("Timed", "public", "projects", False, release_state="released")
+view_plain, _ = pv.derive(plain, fresh_entry("pass"), SHA, on_date=BUILD)
+core_t = {k: view[k] for k in ("Publish", "Tier", "Shelf", "Family", "Sanitized")}
+core_p = {k: view_plain[k] for k in ("Publish", "Tier", "Shelf", "Family", "Sanitized")}
+check(
+    core_t == core_p and view_plain["Freshness"] is None,
+    "timestamps change only Freshness, never the five properties",
+)
+handset = manifest("Handset", "public", "projects", False, release_state="released")
+handset["freshness"] = "New"
+check(
+    "freshness" in pv.find_unknown_keys(handset, SCHEMA),
+    "a hand-set `freshness` key is unknown-key drift",
+)
+view, _ = pv.derive(handset, on_date=BUILD)
+check(
+    view["Freshness"] is None,
+    "a hand-set `freshness` key is never read: badges are derived, never hand-set",
 )
 
 print("== standing rules still enforced ==")
