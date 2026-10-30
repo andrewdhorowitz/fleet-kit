@@ -5,7 +5,6 @@
     "demo": null,
     "docs": null,
     "interactive": null,
-    "repo": "https://github.com/andrewdhorowitz/fleet-kit",
     "site": null
   },
   "section": {
@@ -17,19 +16,13 @@
         "name": "Error reporter"
       },
       {
-        "blurb": "The private kit source: repo template and the converger scripts that keep fleet repos, DNS, and settings at standard.",
-        "family_visible": false,
-        "link": "https://github.com/andrewdhorowitz/repo-template",
-        "name": "Repo template & convergers"
-      },
-      {
-        "blurb": "The fleet's publish manifests, the portfolio link gate, and this private index.",
+        "blurb": "The fleet's publish schema and generated private-host index, the portfolio link gate, and this private index.",
         "family_visible": false,
         "link": "https://github.com/andrewdhorowitz/fleet-kit/tree/main/publish-registry",
         "name": "Publishing system"
       }
     ],
-    "blurb": "Shared kit code for the fleet \u2014 error reporter, diagram tooling, and the publish registry.",
+    "blurb": "Shared kit code for the fleet \u2014 error reporter, diagram tooling, and the publishing system.",
     "family_visible": false,
     "group": "shared-infrastructure",
     "include": true
