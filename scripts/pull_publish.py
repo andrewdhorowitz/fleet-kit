@@ -8,11 +8,14 @@ One project = one repo (Andrew's rule, Oct 29, 2026): a project's
 publish.json lives only in that project's repo, and every consumer
 pulls it from there. This tool is shared infrastructure (fleet-kit) —
 it is the sanctioned way to read the whole fleet's publish intent.
-It stores NO manifest copies: the index it writes contains only the
+It stores NO manifest copies: the index it writes contains the
 declared-private host strings (which are not secret — the gate they
 feed runs in the public portfolio's CI, where private repos cannot
 be read), each with the project and source repo it came from, plus
-the source manifest blob SHAs so staleness is checkable at a glance.
+the source manifest blob SHAs so staleness is checkable at a glance —
+and, since the property model landed, each repo's derived property
+view (a generated cache of the derivation function's output, never
+a second source of truth).
 
 It also checks Andrew's visibility-follows-mode rule (Oct 29, 2026):
 a repo's actual GitHub visibility must match the mode its manifest
@@ -24,6 +27,17 @@ never fixed here: flipping toward public is an exposure that needs
 Andrew's explicit word per repo, and flipping a Pages-hosted repo
 toward private can take its site offline.
 
+Since Oct 30, 2026 it also runs the fleet's ONE derivation function
+(scripts/publish_view.py) over every manifest: the derived property
+view — Publish, Tier, Shelf, Family, Sanitized — is printed per
+repo, and with --write it is recorded in the generated index beside
+the hosts, so downstream consumers read the view from one shape
+(derivation spec §7). Validation runs through the same module: the
+Family rule (Family=True forces Tier=Private) fails closed with the
+rule named, and keys the schema does not declare are reported as
+DRIFT lines — inert data, never read, never fatal (derivation
+spec §6).
+
 Usage (from a fleet-kit checkout):
     FLEET_PULL_TOKEN=<token> python3 scripts/pull_publish.py [--write]
 
@@ -34,6 +48,7 @@ Requires the `jsonschema` package for validation.
 """
 
 import base64
+import importlib.util
 import json
 import os
 import sys
@@ -41,6 +56,9 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import publish_view
 
 API = "https://api.github.com"
 OWNER_ACCOUNT = "andrewdhorowitz"
@@ -114,37 +132,59 @@ def repo_is_private(repo_slug, token):
 
 
 def declared_mode(manifest):
-    """The repo visibility a manifest's declared mode prescribes.
+    """The repo visibility a manifest's declared mode prescribes,
+    read off the derived property view (scripts/publish_view.py) —
+    the derivation is the one source of truth; this is its mode
+    projection, kept under its existing name for existing callers.
 
-    status "public" -> public repo. Status "private" -> private repo.
-    Status "demo-only" -> private repo: the repo itself holds the
-    private live surface; any public demo is a separate project in
-    its OWN repo, never a reason for this repo to be public. A
-    private-tier section entry (family group or family_visible) also
-    prescribes a private repo, whatever the status says.
+    Tier=Public prescribes a public repo — unless the entry is a
+    private-tier one (Shelf=family or Family=True), which prescribes
+    a private repo whatever the status says. Every other posture
+    prescribes private: status "private", and status "demo-only"
+    (the repo itself holds the private live surface; any public demo
+    is a separate project in its OWN repo, never a reason for this
+    repo to be public).
     """
-    section = manifest.get("section") or {}
-    if section.get("family_visible") or section.get("group") == "family":
-        return "private"
-    return "public" if manifest.get("status") == "public" else "private"
+    view, _warnings = publish_view.derive(manifest)
+    if view["Tier"] == "Public" and view["Shelf"] != "family" and not view["Family"]:
+        return "public"
+    return "private"
 
 
 def main():
     write = "--write" in sys.argv[1:]
-    try:
-        import jsonschema
-    except ImportError:
+    if importlib.util.find_spec("jsonschema") is None:
         raise SystemExit("pull_publish.py needs the jsonschema package to validate")
     schema = json.loads(SCHEMA_PATH.read_text())
     token = os.environ.get("FLEET_PULL_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    overlay = publish_view.load_overlay()
+    overlay_entries = (overlay or {}).get("entries") or {}
 
     hosts = []
     sources = {}
+    views = {}
     mismatches = []
     print(f"{'repo':28} {'project':22} {'status':9} {'mode':8} {'actual':8} hosts")
     for repo_slug in FLEET_REPOS:
         manifest, repo_private, sha = pull_manifest(repo_slug, token)
-        jsonschema.validate(manifest, schema)
+        for key in publish_view.find_unknown_keys(manifest, schema):
+            print(
+                f"DRIFT: {repo_slug}: unknown key {key!r} in publish.json "
+                "— inert (the derivation never reads it); remove it as "
+                "manifest maintenance"
+            )
+        errors = publish_view.validate(manifest, schema)
+        if errors:
+            raise SystemExit(
+                f"schema validation failed for {repo_slug}:\n"
+                + "\n".join(f"  - {error}" for error in errors)
+            )
+        view, warnings = publish_view.derive(
+            manifest, overlay_entries.get(repo_slug), sha
+        )
+        views[repo_slug] = view
+        for warning in warnings:
+            print(f"warning: {repo_slug}: {warning}")
         sources[repo_slug] = sha
         declared = manifest.get("private_hosts") or []
         for raw in declared:
@@ -157,7 +197,10 @@ def main():
             mismatches.append((repo_slug, mode, actual, "manifest"))
         print(
             f"{repo_slug:28} {manifest['project']:22} {manifest['status']:9} "
-            f"{mode:8} {actual:8} {len(declared)}"
+            f"{mode:8} {actual:8} {len(declared)}  "
+            f"Publish={view['Publish']} Tier={view['Tier']} "
+            f"Shelf={view['Shelf']} Family={view['Family']} "
+            f"Sanitized={view['Sanitized']}"
         )
     print(f"all {len(FLEET_REPOS)} manifests pulled and schema-valid")
 
@@ -183,13 +226,17 @@ def main():
             "note": (
                 "GENERATED by fleet-kit/scripts/pull_publish.py from each "
                 "repo's own publish.json — do not edit by hand. Contains "
-                "only declared-private host strings for the portfolio "
-                "publish gate; the manifests themselves live in their "
-                "own repos and are pulled from there."
+                "the declared-private host strings for the portfolio "
+                "publish gate, plus each repo's derived property view "
+                "(Publish/Tier/Shelf/Family/Sanitized, computed by "
+                "scripts/publish_view.py from the same manifests and "
+                "the sanitize overlay); the manifests themselves live "
+                "in their own repos and are pulled from there."
             ),
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "sources": sources,
             "private_hosts": hosts,
+            "views": views,
         }
         INDEX_PATH.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
         print(f"wrote {INDEX_PATH.relative_to(ROOT)}: {len(hosts)} private host(s)")

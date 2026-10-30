@@ -42,7 +42,7 @@ limits and risks in its own README.
 | Folder | What it is |
 |---|---|
 | [`error-reporter/`](error-reporter/) | A dependency-free visitor error-reporting core for static sites and small web apps: one funnel, a shared tier-classification table, pluggable sinks (Firestore, a collector Worker, Sentry, none), and a test suite. |
-| [`publish-registry/`](publish-registry/) | The fleet publish schema, plus the generated private-hosts index the portfolio gate consumes. The manifests themselves live in each project's own repo — consumers pull them from there (see [`scripts/pull_publish.py`](scripts/pull_publish.py)). |
+| [`publish-registry/`](publish-registry/) | The fleet publish schema, plus the generated private-hosts index the portfolio gate consumes. The manifests themselves live in each project's own repo — consumers pull them from there (see [`scripts/pull_publish.py`](scripts/pull_publish.py)), and the derived property view (Publish / Tier / Shelf / Family / Sanitized) is computed by the one derivation function, [`scripts/publish_view.py`](scripts/publish_view.py). |
 
 More pieces (diagram tooling, site snippets) land here as they graduate from the
 private kit.
