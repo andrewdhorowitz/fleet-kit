@@ -1,0 +1,66 @@
+name: text-bridge-token-sync
+
+# Manual only. Mirrors the fleet-kit TEXT_BRIDGE_TOKEN secret onto the
+# text-bridge-receiver Worker as its TEXT_BRIDGE_TOKEN secret binding,
+# using the fleet's own CF_API_TOKEN (deposited by
+# scripts/cf-token-converge.sh). Dispatched by
+# scripts/show-bridge-token-once.sh after it rotates the token.
+#
+# Secret hygiene: the token travels only through env vars into a
+# jq-built request body piped straight to curl. Nothing in this
+# workflow prints the value, its length, or any fragment of it — steps
+# report only the Cloudflare API's success flag.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  set-worker-secret:
+    runs-on: ubuntu-latest
+    env:
+      CF_ACCOUNT_ID: "2e2d28cfd77d3c1215cbe512c7fd2733"
+      WORKER_SCRIPT: "text-bridge-receiver"
+      SECRET_NAME: "TEXT_BRIDGE_TOKEN"
+    steps:
+      - name: Check required secrets are present
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          TEXT_BRIDGE_TOKEN: ${{ secrets.TEXT_BRIDGE_TOKEN }}
+        run: |
+          missing=0
+          if [ -z "${CF_API_TOKEN:-}" ]; then echo "::error::CF_API_TOKEN secret is not set"; missing=1; fi
+          if [ -z "${TEXT_BRIDGE_TOKEN:-}" ]; then echo "::error::TEXT_BRIDGE_TOKEN secret is not set"; missing=1; fi
+          [ "$missing" -eq 0 ] || exit 1
+          echo "Both secrets are present."
+
+      - name: PUT Worker secret via Cloudflare API
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          TEXT_BRIDGE_TOKEN: ${{ secrets.TEXT_BRIDGE_TOKEN }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          http_code="$(jq -n \
+              --arg name "$SECRET_NAME" \
+              --arg text "$TEXT_BRIDGE_TOKEN" \
+              --arg type "secret_text" \
+              '{name: $name, text: $text, type: $type}' \
+            | curl -sS -o "$response_file" -w '%{http_code}' -X PUT \
+                "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/workers/scripts/${WORKER_SCRIPT}/secrets" \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data @-)"
+          echo "Cloudflare API HTTP status: $http_code"
+          success="$(jq -r '.success // false' "$response_file")"
+          echo "Cloudflare API success flag: $success"
+          if [ "$success" != "true" ]; then
+            echo "::error::Cloudflare refused the secret upload. Error codes/messages from the API:"
+            jq -c '.errors // []' "$response_file"
+            rm -f "$response_file"
+            exit 1
+          fi
+          rm -f "$response_file"
+          echo "✓ Worker secret $SECRET_NAME is set on $WORKER_SCRIPT."
