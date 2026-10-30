@@ -4,6 +4,9 @@ name: SonarCloud autoscan off (one-off)
 # Analysis on the fleet projects so CI-based analysis is the single
 # method. Uses the repo's SONAR_TOKEN secret; writes its API evidence
 # to sonar-autoscan-results.md and commits it. Manual dispatch only.
+# v2: correct endpoint is POST /api/autoscan/activation (enable=false),
+# and the live routines project key is andrewdhorowitz_routines-and-streaks2
+# (andrewdhorowitz_routines-and-streaks is the ARCHIVE project - untouched).
 
 on:
   workflow_dispatch:
@@ -25,25 +28,20 @@ jobs:
           API=https://sonarcloud.io
           OUT=sonar-autoscan-results.md
           : > "$OUT"
-          echo "# SonarCloud Automatic Analysis - disable run" >> "$OUT"
+          echo "# SonarCloud Automatic Analysis - disable run (v2)" >> "$OUT"
           echo "Run date (UTC): $(date -u +%FT%TZ)" >> "$OUT"
-          echo >> "$OUT"
-          echo "## All projects in org andrewdhorowitz" >> "$OUT"
-          curl -s -u "$SONAR_TOKEN:" "$API/api/projects/search?organization=andrewdhorowitz&ps=100" > projects.json
-          jq -r '.components[] | "- key=\(.key) name=\(.name)"' projects.json >> "$OUT" 2>/dev/null || cat projects.json >> "$OUT"
-          KEYS=$(jq -r '.components[].key' projects.json | grep -E '_(aimf-protocol|routines-and-streaks|fleet-kit)$')
-          echo >> "$OUT"
-          echo "Matched project keys:" >> "$OUT"
-          echo "$KEYS" >> "$OUT"
+          KEYS="andrewdhorowitz_aimf-protocol andrewdhorowitz_fleet-kit andrewdhorowitz_routines-and-streaks2"
           for KEY in $KEYS; do
             echo >> "$OUT"
             echo "## $KEY" >> "$OUT"
-            echo "### autoscan status (before)" >> "$OUT"
-            curl -s -w '\nHTTP %{http_code}\n' -u "$SONAR_TOKEN:" "$API/api/autoscan/status?projectKey=$KEY" >> "$OUT"
-            echo "### POST autoscan/deactivate" >> "$OUT"
-            curl -s -w '\nHTTP %{http_code}\n' -X POST -u "$SONAR_TOKEN:" "$API/api/autoscan/deactivate?projectKey=$KEY" >> "$OUT"
-            echo "### autoscan status (after)" >> "$OUT"
-            curl -s -w '\nHTTP %{http_code}\n' -u "$SONAR_TOKEN:" "$API/api/autoscan/status?projectKey=$KEY" >> "$OUT"
+            echo "### GET autoscan/eligibility (before)" >> "$OUT"
+            curl -s -w '\nHTTP %{http_code}\n' -u "$SONAR_TOKEN:" "$API/api/autoscan/eligibility?projectKey=$KEY" >> "$OUT"
+            echo "### POST autoscan/activation enable=false" >> "$OUT"
+            curl -s -w '\nHTTP %{http_code}\n' -X POST -u "$SONAR_TOKEN:" --data "enable=false&projectKey=$KEY" "$API/api/autoscan/activation" >> "$OUT"
+            echo "### GET autoscan/eligibility (after)" >> "$OUT"
+            curl -s -w '\nHTTP %{http_code}\n' -u "$SONAR_TOKEN:" "$API/api/autoscan/eligibility?projectKey=$KEY" >> "$OUT"
+            echo "### GET settings/values grep autoscan (after)" >> "$OUT"
+            curl -s -u "$SONAR_TOKEN:" "$API/api/settings/values?component=$KEY" | grep -i -A2 -B2 autoscan >> "$OUT" || echo "(no autoscan key in settings values)" >> "$OUT"
           done
           cat "$OUT"
 
@@ -52,5 +50,5 @@ jobs:
           git config user.name "fleet-automation"
           git config user.email "fleet-automation@users.noreply.github.com"
           git add sonar-autoscan-results.md
-          git commit -m "SonarCloud autoscan-off: API results" || echo "nothing to commit"
+          git commit -m "SonarCloud autoscan-off: API results (v2)" || echo "nothing to commit"
           git push
