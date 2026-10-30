@@ -60,7 +60,11 @@ jobs:
           repository: andrewdhorowitz/routines-and-streaks
           ref: ${{ inputs.routines_ref }}
           path: routines
-          fetch-depth: 2
+          # Full history: the publish drift guard reads HEAD~1's
+          # firestore.rules as the expected prior source, and a shallow
+          # SHA checkout did not guarantee the parent is present
+          # (first publish attempt, 2026-10-30). Small repo — cheap.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
