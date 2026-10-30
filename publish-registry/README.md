@@ -61,14 +61,16 @@ explicit yes — it is for surfaces that carry the family's own data
 companion surfaces of the SAME project (e.g. the Fleet Kit's
 error-reporter companion); a companion may not link another
 project's repo — that project gets its own manifest instead. An
-optional `status` in `section` (or on an `also` item) overrides the
-badge the index shows for that entry, for when the entry itself
-differs from the project's public posture: Family Cards is
-`demo-only` as a posture (only its demo may be linked publicly), but
-the index entry is the live tool itself, so its section status is
-`live`. Without the override, the badge falls back to the manifest
-`status`. An optional `link_audiences` in `section` narrows a link
-kind to one audience (`owner` / `family`); it can only narrow —
+optional `status` in `section` (or on an `also` item) is a legacy
+badge field, kept in the schema for the entries that carry it: since
+the Oct 30, 2026 release_state amendment, "Demo" and "Live" are no
+longer tier badges — a card's placement comes from its derived Tier
+and its lifecycle from `release_state` (see "Derived property view"
+below), and no derivation reads this field. Family Cards is
+`private` as a posture, and its section entry — the live tool
+itself — carries `live` in this field. An optional
+`link_audiences` in `section` narrows a link kind to one audience
+(`owner` / `family`); it can only narrow —
 `repo` is owner-only by construction.
 
 First pass (Oct 29, 2026): andrewdhorowitz.github.io,
@@ -91,10 +93,12 @@ matches its declared mode. A sanitized repo in **public mode is a
 public repo**; a repo in a **private-tier mode (family/owner) is a
 private repo**. The mode is declared in the project's own
 `publish.json`: status `public` → public repo; status `private` →
-private repo; status `demo-only` → private repo (the repo holds the
-private live surface — any public demo is a separate project in its
-OWN repo); a family-tier section entry (family group or
-`family_visible`) also means a private repo. Two fleet repos carry
+private repo (a repo holding a private live surface is `private` —
+any public demo is a separate project in its OWN repo); a
+family-tier section entry (family group or `family_visible`) also
+means a private repo. `release_state` never affects the mode: it is
+display-only lifecycle data, derived flat per project from that
+project's own manifest. Two fleet repos carry
 no manifest, so their modes are declared by role in the spec:
 `private-section` is private (the consumer/display), `fleet-ci` is
 public (public callers can only call public reusable workflows).
@@ -120,19 +124,26 @@ in its LEG E report, so a mismatch never sits silent. First audit
 ## Derived property view
 
 The publish property model (Andrew's distilled design, approved
-Oct 30, 2026) stores nothing in the marker: `publish.json` stays
-v2-shaped, and the five properties are a **derived view**, computed
-by the fleet's ONE derivation function —
+Oct 30, 2026) stores none of its five properties in the marker:
+`publish.json` stays v2-shaped for them, and the five properties are
+a **derived view**, computed by the fleet's ONE derivation
+function —
 [`scripts/publish_view.py`](../scripts/publish_view.py), in this
 shared layer — from the existing fields:
 
 | Property | Derived from |
 |---|---|
 | **Publish** | marker presence (no marker → `Publish=False`; `Publish=False` is encoded as `status: "private"`) |
-| **Tier** | `status` — `public` → Public; `private` → Private; `demo-only` → Private |
+| **Tier** | `status` — `public` → Public; `private` → Private |
+| **ReleaseState** (display data, not a property) | the marker's `release_state`, carried through verbatim (`under_construction` \| `testing` \| `released`) — flat per project, from that project's own manifest only; it never feeds Publish, Tier, Family, or Sanitized, and no gate reads it; `released` is the unmarked default |
 | **Shelf** | `section.group`, verbatim (`projects` \| `family` \| `shared-infrastructure`) — the one category axis |
 | **Family** | `section.family_visible` |
 | **Sanitized** | the sanitize overlay above — never the marker; a stale overlay entry is ignored with a warning, and a repo the gate does not scan has no result (`null`) |
+
+`release_state` is the one stored attribute added to the marker
+(Oct 30, 2026): lifecycle stage is not derivable from any existing
+field, so it is declared in each project's own `publish.json` and
+carried through the view as data for cards to display.
 
 Two rules are non-bypassable, with no exception mechanism anywhere:
 
@@ -141,8 +152,8 @@ Two rules are non-bypassable, with no exception mechanism anywhere:
    unknown result fails that test too.
 2. **Family=True forces Tier=Private.** Enforced in the schema
    (the rule clause in `publish.schema.json`:
-   `section.family_visible: true` requires status `private` or
-   `demo-only`) and in the derivation itself, which refuses the
+   `section.family_visible: true` requires status `private`) and
+   in the derivation itself, which refuses the
    combination rather than coercing it. The pull tool fails closed
    with the rule named.
 
