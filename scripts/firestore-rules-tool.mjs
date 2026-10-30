@@ -145,11 +145,21 @@ try {
       source: { files: [{ name: 'firestore.rules', content: newSource }] },
     });
     const issues = (t.json?.issues || []).filter((i) => i.severity === 'ERROR');
-    if (t.status !== 200 || issues.length > 0) {
+    if (issues.length > 0) {
       fail(`publish: compile validation failed (HTTP ${t.status}, ${issues.length} error issue(s)): ${JSON.stringify(issues).slice(0, 500)}`);
       throw new Error('abort');
     }
-    log('publish: compile validation clean (projects.test, no ERROR issues)');
+    if (t.status !== 200) {
+      // Advisory only (fix 2026-10-30): projects:test returns HTTP 403 for
+      // this service account with zero ERROR issues — the account can read
+      // releases/rulesets, create rulesets, and PATCH releases (proven by
+      // firebase-converge.sh step 3, which never calls :test), but lacks
+      // the test permission. Ruleset creation below remains the server-side
+      // compile gate: invalid rules fail creation and are never released.
+      log(`publish: projects.test advisory — HTTP ${t.status}, 0 ERROR issues; body: ${t.text.slice(0, 300)}; proceeding (ruleset create is the compile gate)`);
+    } else {
+      log('publish: compile validation clean (projects.test, no ERROR issues)');
+    }
     // 2. Drift guard: live must equal the expected prior source.
     const live = await readLive();
     log(`publish: live ruleset before = ${live.rulesetName}`);
