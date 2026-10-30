@@ -1,0 +1,12 @@
+{
+  "exceptions": [
+    {
+      "path": "error-reporter/README.md",
+      "class": "topic",
+      "terms": [
+        "amount"
+      ],
+      "reason": "Vendor pricing figures for third-party services (Sentry, Cloudflare, ua-parser-js license tiers) in a library-selection comparison \u2014 public pricing of other companies' products, not the owner's financial data."
+    }
+  ]
+}
