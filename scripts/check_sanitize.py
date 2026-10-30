@@ -62,7 +62,14 @@ SKIP_EXTS = {
     ".ttf", ".eot", ".zip", ".gz", ".mp4", ".webp", ".avif", ".lock",
 }
 SKIP_DIRS = {"node_modules", "__pycache__"}
-SELF_FILES = {"sanitize_terms.json", "check_sanitize.py", "sanitize-exceptions.json"}
+SELF_FILES = {
+    "sanitize_terms.json",
+    "check_sanitize.py",
+    "sanitize-exceptions.json",
+    # The generated overlay quotes failing matches verbatim; scanning
+    # it would re-flag the quotes forever (gate output is not content).
+    "sanitize-overlay.json",
+}
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # RFC 2606 reserved example domains (and any *.invalid) can never be
 # a real address or identify anyone — specs and probe scripts use
