@@ -1,8 +1,8 @@
-firestore-rules tool — mode=read-live project=family-routines-app
-when: 2026-10-30T14:40:09.373Z
-live release ruleset: projects/family-routines-app/rulesets/4b6e6a53-1926-4fe1-9336-63a3b68e4687
-live rules for rollback: PATCH release rulesetName -> projects/family-routines-app/rulesets/4b6e6a53-1926-4fe1-9336-63a3b68e4687
-NEW_RULES: canonical-equal to live = true
-PRIOR_RULES: canonical-equal to live = false
-PRIOR_RULES: first diff at canonical line 110: live="// Error reports (error-reporting Phase 1, Step 1): clients — signed in" file="match /{document=**} {"
-read-live: OK
+firestore-rules tool — mode=publish project=family-routines-app
+when: 2026-10-30T14:40:55.444Z
+publish: compile validation clean (projects.test, no ERROR issues)
+publish: live ruleset before = projects/family-routines-app/rulesets/4b6e6a53-1926-4fe1-9336-63a3b68e4687
+publish: drift guard passed (live == expected prior source)
+publish: ruleset created = projects/family-routines-app/rulesets/91f2da1c-8372-4572-a453-57def15beb65
+publish: OK — release now serves projects/family-routines-app/rulesets/91f2da1c-8372-4572-a453-57def15beb65; live source canonically equals the new repo source
+rollback handle: dispatch mode=rollback with rollback_ruleset=projects/family-routines-app/rulesets/4b6e6a53-1926-4fe1-9336-63a3b68e4687
