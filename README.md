@@ -47,6 +47,21 @@ limits and risks in its own README.
 More pieces (diagram tooling, site snippets) land here as they graduate from the
 private kit.
 
+## Also carried here — the SonarCloud standard (kit v3.13)
+
+The bootstrap standard maintained in the private kit also wires **SonarCloud**
+static analysis into the fleet's public repos: bugs, vulnerabilities, security
+hotspots, code smells, and duplication across JavaScript and Python, beyond
+what the linters catch. It is report-only (results publish to sonarcloud.io;
+it never fails a build), free for public repositories, and skipped on private
+repos, which sit behind SonarCloud's paid tier. This repo carries the standard
+first, as its proving repo: `.github/workflows/sonar.yml` and
+`sonar-project.properties` sit here inert — the workflow's preflight reports
+"not wired" and skips, keeping CI green — until the owner's SonarCloud
+install (project + `SONAR_TOKEN` secret + real project keys) lands. Exit
+cost, if ever wanted: delete the workflow and properties file and uninstall
+the app; nothing lives only there except analysis history.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
