@@ -71,7 +71,7 @@ jobs:
           # (first publish attempt, 2026-10-30). Small repo — cheap.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
 
