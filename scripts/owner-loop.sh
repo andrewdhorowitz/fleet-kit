@@ -32,9 +32,21 @@
 # PID no longer alive) is reclaimed automatically.
 #
 # EACH ROUND (default every 60s, OWNER_LOOP_INTERVAL):
-#   1. git pull — failure is tolerated: noted on the terminal and
-#      in status.md, an increasing backoff is added to the round
-#      sleep, and the loop keeps going on the local copy.
+#   1. git pull (rebase + autostash: the phone's local commits
+#      are loop output — results + status — so they replay onto
+#      origin, and autostash carries the loop's own uncommitted
+#      status writes across the rebase so they never block it;
+#      a conflict in owner-queue/status.md alone — mid-rebase or
+#      in the autostash re-apply — auto-resolves for the local
+#      side, since write_status()
+#      regenerates that file every round anyway; any other
+#      conflict aborts the rebase cleanly and is noted in
+#      status.md) — failure is tolerated: noted on the terminal
+#      and in status.md, an increasing backoff is added to the
+#      round sleep, and the loop keeps going on the local copy.
+#      A push rejected as non-fast-forward heals the same way:
+#      the next round's rebase runs before commit_queue(), which
+#      always re-attempts the push.
 #   2. Self-update: if the pulled owner-loop.sh differs from the
 #      running copy and parses (bash -n), the loop re-execs
 #      itself, so fixes Muse pushes land WITHOUT Andrew
@@ -113,6 +125,7 @@ LAST_JOB_DESC="none yet"
 LAST_PUSH_DESC="never"
 LAST_STATUS_COMMIT=0
 GIT_FAILS=0
+PULL_NOTE=""
 STOP_REQUESTED=0
 CURRENT_JOB=""
 STATUS_NOTE=""
@@ -164,13 +177,112 @@ commit_queue() {
   return 1
 }
 
+# A pull --rebase stalls with the rebase left in progress when a
+# replayed local commit conflicts with what origin gained in the
+# meantime. The one predictable conflict is owner-queue/status.md:
+# both sides rewrite it (the loop every round, a push whenever
+# Muse-side work carries it along), and its content is disposable
+# — write_status() regenerates it wholesale each round. So if the
+# ONLY conflicted path is status.md, resolve it for the local side
+# and continue: during a rebase, --theirs is the local commit
+# being replayed (the freshest local write). Any other conflict
+# aborts the rebase cleanly — the tree returns to the pre-pull
+# local state and the round continues on the local copy, with the
+# reason left in PULL_NOTE for status.md. Returns 0 iff a rebase
+# was in progress and has now finished cleanly.
+heal_rebase() {
+  local i gitdir unmerged
+  for ((i = 0; i < 25; i++)); do
+    gitdir="$(git rev-parse --git-dir 2>/dev/null)" || return 1
+    [[ -d "$gitdir/rebase-merge" || -d "$gitdir/rebase-apply" ]] || return 1
+    unmerged="$(git diff --name-only --diff-filter=U 2>/dev/null)"
+    if [[ -n "$unmerged" && "$unmerged" != "owner-queue/status.md" ]]; then
+      PULL_NOTE="rebase conflict in ${unmerged//$'\n'/ }; rebase aborted"
+      git rebase --abort >/dev/null 2>&1 || true
+      return 1
+    fi
+    if [[ "$unmerged" == "owner-queue/status.md" ]]; then
+      git checkout --theirs -- owner-queue/status.md 2>/dev/null \
+        && git add -- owner-queue/status.md 2>/dev/null \
+        || { git rebase --abort >/dev/null 2>&1 || true; return 1; }
+    fi
+    if ! GIT_EDITOR=true git rebase --continue >/dev/null 2>&1 && [[ -z "$unmerged" ]]; then
+      # A replayed commit that became empty can stall --continue;
+      # skipping it is safe (its content is already upstream).
+      git rebase --skip >/dev/null 2>&1 || true
+    fi
+    gitdir="$(git rev-parse --git-dir 2>/dev/null)" || return 1
+    [[ -d "$gitdir/rebase-merge" || -d "$gitdir/rebase-apply" ]] || return 0
+  done
+  PULL_NOTE="rebase did not settle; aborted"
+  git rebase --abort >/dev/null 2>&1 || true
+  return 1
+}
+
+# The companion case: the rebase itself succeeded, but the
+# --autostash re-apply clashed — the loop's own uncommitted
+# status.md write against a status.md change that arrived in the
+# same pull. No rebase is in progress then; the tree just has
+# conflicted paths. If status.md is the only one, resolve it for
+# the local side (the stashed write, --theirs in a stash-apply
+# conflict) and drop the spent autostash entry. The pull had
+# already landed at that point, so the caller counts it a success.
+heal_unmerged_status() {
+  local unmerged
+  unmerged="$(git diff --name-only --diff-filter=U 2>/dev/null)"
+  if [[ -n "$unmerged" && "$unmerged" != "owner-queue/status.md" ]]; then
+    # Not auto-resolvable (e.g. a job's own dirty file clashed in
+    # the re-apply): leave it for a human, but name it for status.
+    PULL_NOTE="conflict left in ${unmerged//$'\n'/ } (not auto-resolved)"
+    return 1
+  fi
+  [[ "$unmerged" == "owner-queue/status.md" ]] || return 1
+  git checkout --theirs -- owner-queue/status.md 2>/dev/null || return 1
+  git add -- owner-queue/status.md 2>/dev/null || return 1
+  if [[ "$(git stash list --format=%gs 2>/dev/null | head -n 1)" == *autostash* ]]; then
+    git stash drop -q >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
+# 0 iff the tree is whole: no rebase in progress, no path left
+# unmerged. do_pull judges its outcome by this, not by git's exit
+# code alone (see below).
+pull_clean() {
+  local gitdir
+  gitdir="$(git rev-parse --git-dir 2>/dev/null)" || return 1
+  [[ ! -d "$gitdir/rebase-merge" && ! -d "$gitdir/rebase-apply" ]] || return 1
+  [[ -z "$(git diff --name-only --diff-filter=U 2>/dev/null)" ]]
+}
+
+# Pull with an explicit reconcile strategy: local commits (loop
+# output) rebase onto origin. --autostash because status.md sits
+# dirty in the tree between heartbeat commits, and a rebase pull
+# refuses a dirty tree outright ("cannot pull with rebase: You
+# have unstaged changes" — the same wall a manual pull from a
+# second session hits while the loop is running). On failure, the
+# heal steps get their chance before the round falls back to the
+# local copy. Success is judged by the state left behind, not
+# the exit code: git exits 0 even when the autostash re-apply
+# conflicted (stash kept, path left unmerged), and a stalled
+# rebase hides behind a nonzero exit the heals can still finish.
+# The pull counts as landed iff it exited cleanly or a heal
+# completed the integration AND the tree is whole again — a fetch
+# that never reached origin satisfies neither.
 do_pull() {
-  if git pull -q >/dev/null 2>&1; then
+  PULL_NOTE=""
+  local landed=0
+  git pull -q --rebase --autostash >/dev/null 2>&1 && landed=1
+  heal_rebase && landed=1
+  heal_unmerged_status && landed=1
+  if [[ $landed -eq 1 ]] && pull_clean; then
     GIT_FAILS=0
+    case "$STATUS_NOTE" in "git pull failed"*) STATUS_NOTE="" ;; esac
     return 0
   fi
   GIT_FAILS=$((GIT_FAILS + 1))
   echo "--- owner-loop: git pull failed ($GIT_FAILS in a row) — continuing with the local copy ---"
+  STATUS_NOTE="git pull failed ($GIT_FAILS in a row)${PULL_NOTE:+ — $PULL_NOTE} — continuing on the local copy"
   return 1
 }
 
