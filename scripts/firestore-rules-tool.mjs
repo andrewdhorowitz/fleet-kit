@@ -271,14 +271,22 @@ async function probe() {
   const created = [];
   try {
     // Throwaway users + temporary admin seat (all removed in finally).
+    // Users carry a per-run password (generated here, never logged) so ID
+    // tokens come from email/password sign-in: custom-token minting needs
+    // the IAM Service Account Credentials API (signBlob), which is disabled
+    // in this project (probe failure, 2026-10-30).
+    const PROBE_PW = 'Probe!' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + '9';
     for (const uid of [REG, ADM]) {
-      try { await auth.getUser(uid); }
-      catch { await auth.createUser({ uid }); }
+      const email = `${uid}@example.com`;
+      try {
+        await auth.getUser(uid);
+        await auth.updateUser(uid, { email, password: PROBE_PW });
+      } catch { await auth.createUser({ uid, email, password: PROBE_PW }); }
     }
     await db.doc(`system_admins/${ADM}`).set({ enabled: true });
     log('probe: throwaway users created; temporary admin seat granted (removed below)');
 
-    // ID tokens via custom-token exchange with the app's public web key,
+    // ID tokens via email/password sign-in with the app's public web key,
     // presenting a referer the key's allowlist accepts (never logged).
     const pageHtml = await (await fetch('https://routines.andrewdhorowitz.com/')).text();
     const keyMatch = pageHtml.match(/apiKey:\s*"([^"]+)"/);
@@ -286,13 +294,13 @@ async function probe() {
     const apiKey = keyMatch[1];
     log(`probe: live page apiKey found (…${apiKey.slice(-4)})`);
     async function idToken(uid) {
-      const custom = await auth.createCustomToken(uid);
+      const email = `${uid}@example.com`;
       for (const ref of ['https://routines.andrewdhorowitz.com/', 'https://andrewdhorowitz.github.io/', null]) {
         const headers = { 'Content-Type': 'application/json' };
         if (ref) headers.Referer = ref;
         const res = await fetch(
-          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${apiKey}`,
-          { method: 'POST', headers, body: JSON.stringify({ token: custom, returnSecureToken: true }) },
+          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+          { method: 'POST', headers, body: JSON.stringify({ email, password: PROBE_PW, returnSecureToken: true }) },
         );
         const j = await res.json().catch(() => null);
         if (res.status === 200 && j?.idToken) {
@@ -377,7 +385,7 @@ async function probe() {
       for (const d of snap.docs) {
         const op = d.get('operation');
         const code = d.get('code');
-        if (code === 'probe/step1' || op === 'step1-probe') {
+        if (code === 'probe/step1' || op === 'step1-probe' || code === 'probe/manual' || op === 'manual-probe') {
           await d.ref.delete();
           deleted++;
         }
