@@ -1,3 +1,1 @@
-# Visit notes
-
-A diagnosis summary lives here.
+Visit notes moved to private staging.

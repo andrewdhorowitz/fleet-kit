@@ -1,0 +1,12 @@
+{
+  "exceptions": [
+    {
+      "path": "words.md",
+      "class": "topic",
+      "terms": [
+        "support group"
+      ],
+      "reason": "Proof fixture: category vocabulary inside a filter-word list."
+    }
+  ]
+}

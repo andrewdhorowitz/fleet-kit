@@ -1,5 +1,5 @@
 # Demo fixture
 
-Contact the coordinator at someone.unlisted@privatemail.net for the schedule.
+Contact the coordinator at kid.coordinator@demo-mail.invalid for the schedule.
 
-The weekly therapy session moved to Tuesdays.
+The weekly appointment session moved to Tuesdays.
