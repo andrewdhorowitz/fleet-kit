@@ -68,7 +68,9 @@ jobs:
 
       - name: Install firebase-admin (script dependency, not saved)
         working-directory: fleet
-        run: npm install --no-save firebase-admin@14
+        # @google-cloud/firestore is firebase-admin v14's peer for the
+        # Firestore surface — same pair the private-section workflow pins.
+        run: npm install --no-save firebase-admin@14 "@google-cloud/firestore@^7"
 
       - name: Materialize the service-account credential in runner temp
         env:
