@@ -1,5 +1,5 @@
 firestore-rules tool — mode=read-live project=family-routines-app
-when: 2026-10-30T10:57:07.085Z
+when: 2026-10-30T10:58:12.718Z
 live release ruleset: projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
 live rules for rollback: PATCH release rulesetName -> projects/family-routines-app/rulesets/659e37f2-4e5d-4c42-a5b7-42a9295fdda0
 NEW_RULES: canonical-equal to live = false
