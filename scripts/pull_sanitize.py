@@ -17,10 +17,11 @@ generator keeps that repo's cards in the OWNER dataset carrying
 the tag, and drops them from the family dataset entirely — the
 fallback is owner-only, never family, and never silent.
 
-Out of scope by posture: `demo-only` and `private` projects (their
-content is not a public/demo surface; the demo of a demo-only
-project is its own project with its own manifest and is gated as
-itself). Live family apps with live data are a separate track.
+Out of scope by posture: `private` projects (their content is not
+a public/demo surface; a private project's public demo, where one
+exists, is its own separate project with its own manifest and is
+gated as itself). Live family apps with live data are a separate
+track.
 
 The overlay is GENERATED, like private-hosts.json: it records each
 repo's manifest blob SHA and head SHA so a consumer can tell a
