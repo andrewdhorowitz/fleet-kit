@@ -64,6 +64,11 @@ SKIP_EXTS = {
 SKIP_DIRS = {"node_modules", "__pycache__"}
 SELF_FILES = {"sanitize_terms.json", "check_sanitize.py", "sanitize-exceptions.json"}
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# RFC 2606 reserved example domains (and any *.invalid) can never be
+# a real address or identify anyone — specs and probe scripts use
+# them deliberately (aimf's counterparty@example.com, the Firebase
+# converger's @example.invalid probe). They are not hits.
+RESERVED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net"}
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 MAX_FILE_BYTES = 3_000_000
 QUOTE_PAD = 90
@@ -129,6 +134,9 @@ def scan_line(line, path, line_no, terms):
     raw = []  # (start, end, kind, term, label)
     for m in EMAIL_RE.finditer(masked):
         email = m.group(0)
+        domain = email.rsplit("@", 1)[-1].lower()
+        if domain in RESERVED_EMAIL_DOMAINS or domain.endswith(".invalid"):
+            continue
         if sha(email.lower()) in terms.email_hashes:
             label, term = "identifier/email (family)", email
         else:
