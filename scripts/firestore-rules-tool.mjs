@@ -46,7 +46,9 @@
  * workflow commits the results file back to fleet-kit so the run can be
  * read and fixed from GitHub (the converger contract).
  */
-import admin from 'firebase-admin';
+import { initializeApp, applicationDefault } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import fs from 'node:fs';
 
 const PROJECT = 'family-routines-app';
@@ -69,9 +71,7 @@ function fail(line) {
 const canonical = (text) =>
   text.split('\n').map((l) => l.trim()).filter((l) => l).join('\n');
 
-const credential = admin.credential.applicationDefault();
-admin.initializeApp({ credential, projectId: PROJECT });
-const { access_token: ACCESS } = await credential.getAccessToken();
+let ACCESS;
 
 async function api(method, url, body) {
   const res = await fetch(url, {
@@ -112,10 +112,13 @@ function firstDiff(a, b) {
   return null;
 }
 
-log(`firestore-rules tool — mode=${MODE} project=${PROJECT}`);
-log(`when: ${new Date().toISOString()}`);
-
 try {
+  log(`firestore-rules tool — mode=${MODE} project=${PROJECT}`);
+  log(`when: ${new Date().toISOString()}`);
+  const credential = applicationDefault();
+  initializeApp({ credential, projectId: PROJECT });
+  ACCESS = (await credential.getAccessToken()).access_token;
+
   if (MODE === 'read-live') {
     const live = await readLive();
     log(`live release ruleset: ${live.rulesetName}`);
@@ -251,8 +254,8 @@ async function probe() {
     log(`${ok ? 'PASS' : 'FAIL'} probe ${name}: HTTP ${got} (want ${want})`);
   }
 
-  const db = admin.firestore();
-  const auth = admin.auth();
+  const db = getFirestore();
+  const auth = getAuth();
   const REG = 'probe-regular-step1';
   const ADM = 'probe-admin-step1';
   const created = [];
