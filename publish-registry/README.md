@@ -67,3 +67,47 @@ as a Projects entry (in the portfolio manifest's `also` list) and the
 manifest/gate/index machinery appears as a Shared Infrastructure entry
 (in fleet-kit's `also` list). Tooling must not flag the pair as a
 duplicate-name defect.
+
+## Sanitization gate — public means public AND generic
+
+Andrew's rule (Oct 29, 2026): the main page is public and generic,
+and anything labeled a Demo must meet the same bar. Content meant
+for a public or demo surface that is not sanitized — a family
+identifier, or an off-limit topic from the standing sensitive
+categories — falls back to owner-only: it does not ship publicly,
+and it does not drop to the family tier instead. (Live family apps
+with live data are a separate track, out of this gate's scope.)
+
+The checker is [`scripts/check_sanitize.py`](../scripts/check_sanitize.py)
+(stdlib only), driven by ONE term file,
+[`scripts/sanitize_terms.json`](../scripts/sanitize_terms.json):
+
+- **Identifiers** (family names, family emails, home/school/street
+  identifiers) are definite hits, stored in the term file as SHA-256
+  hashes of their normalized forms — this repo is public, and a
+  plaintext forbidden-names list would itself publish the
+  identifiers (the same reason family-cards-demo's CI uses generic
+  PII shapes). Add one with
+  `check_sanitize.py --hash-term "<term or email>"`. Any email-shaped
+  string outside Andrew's allowlisted public identity also hits.
+  Identifier hits cannot be excepted by a repo-local file.
+- **Topics** (the sensitive categories, as terms plus a
+  dollar-amount pattern) also hit, and every hit is quoted in the
+  output so false positives stay visible and tunable. A scanned repo
+  may carry `sanitize-exceptions.json` with path+term-scoped,
+  reasoned exceptions for the topic class only — the known cases are
+  a redaction filter's own word list and invented-data fixtures that
+  exist to prove the filter works. Excepted hits still print.
+- Andrew's own public identity (name, handles/domains, public email
+  addresses) is allowlisted in the term file and masked before
+  scanning — he is public on purpose.
+
+Wiring: the portfolio and family-cards-demo each carry a
+`sanitize-gate.yml` workflow that checks out fleet-kit and runs the
+checker over their own tree on push/PR — the same check family as
+the publish gate (which checks link permission; this checks
+content). The private section's generator emits no public dataset,
+so there is no generator-side public surface to reclassify: the
+owner-only fallback is executed at these repo gates (CI red — the
+content does not ship) and recorded in the spec
+(PUBLISH-MANIFEST-SPEC, sanitization addendum).
