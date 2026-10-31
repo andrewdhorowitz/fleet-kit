@@ -1,4 +1,6 @@
 {
+  "first_released": "2026-10-29",
+  "last_released": "2026-10-30",
   "private_hosts": [],
   "project": "Fleet Kit",
   "public_urls": {
@@ -7,6 +9,7 @@
     "interactive": null,
     "site": null
   },
+  "release_state": "released",
   "section": {
     "also": [
       {
