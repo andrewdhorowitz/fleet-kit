@@ -2,40 +2,79 @@
   "entries": {
     "aimf-protocol": {
       "excepted": 0,
-      "head_sha": "5fd66f1faa46c3ab7f6351533d38df0874cc0206",
+      "head_sha": "1b542543642d1e9b4758a1b1ae90c870905e86cd",
       "in_scope": true,
-      "manifest_sha": "2ce5faed3c826fe920291ec6825037ff3a33e4ad",
+      "manifest_sha": "2617fce72f9e572c1ec8aaa8584ea6e751c13c2d",
       "project": "AIMF",
       "status": "pass"
     },
     "andrewdhorowitz.github.io": {
       "excepted": 3,
-      "head_sha": "845427a56d085656a8161509e4df64de2b928f23",
+      "head_sha": "a900d8e9a074201ca0be43329326d7cce1817aac",
       "in_scope": true,
-      "manifest_sha": "3d7e0f99247cb214202db3e7aec02dcf74f0ed62",
+      "manifest_sha": "995b5a869adaf99a33bcc14b3ec5c480e526a4bf",
       "project": "andrewdhorowitz.com",
       "status": "pass"
     },
     "family-cards": {
       "in_scope": false,
-      "posture": "demo-only",
+      "posture": "private",
       "project": "Family Cards"
     },
     "family-cards-demo": {
       "excepted": 24,
-      "head_sha": "3e76904781af012a7267cd1e731eed1336d7448c",
+      "head_sha": "4b629405a3ca36c9874bf04d047abeb27e717ccf",
       "in_scope": true,
-      "manifest_sha": "000f157281f84582619c0c87648fb781428015f5",
+      "manifest_sha": "4552fda6a88f8d5921fe817e69e3b9a768cad163",
       "project": "Family Cards Demo",
       "status": "pass"
     },
     "fleet-kit": {
       "excepted": 24,
-      "head_sha": "ad1e18973bf2934d1530b1bac3bd8dec903723e4",
+      "head_sha": "72161f14214733ebf7d624b7b39e150417bb322b",
       "in_scope": true,
-      "manifest_sha": "bbfcf50d2ef7df3a120a638be600f3a83f910bd5",
+      "manifest_sha": "e33611aa717ad4b2ad9b0df84e178cb51d7d1e2a",
+      "matches": [
+        {
+          "file": "sonar-autoscan-results.md",
+          "label": "identifier/email (unlisted)",
+          "line": 15,
+          "quote": "es\",\"value\":\"30\",\"inherited\":true,\"parentOrigin\":\"INSTANCE\"},{\"key\":\"email.from\",\"value\":\"noreply@sonarcloud.io\",\"inherited\":true,\"parentValue\":\"noreply@sonarcloud.io\",\"parentOrigin\":\"INSTANCE\"},{\"key\""
+        },
+        {
+          "file": "sonar-autoscan-results.md",
+          "label": "identifier/email (unlisted)",
+          "line": 15,
+          "quote": "NCE\"},{\"key\":\"email.from\",\"value\":\"noreply@sonarcloud.io\",\"inherited\":true,\"parentValue\":\"noreply@sonarcloud.io\",\"parentOrigin\":\"INSTANCE\"},{\"key\":\"email.fromName\",\"value\":\"SonarCloud\",\"inherited\":true"
+        },
+        {
+          "file": "sonar-autoscan-results.md",
+          "label": "identifier/email (unlisted)",
+          "line": 28,
+          "quote": "es\",\"value\":\"30\",\"inherited\":true,\"parentOrigin\":\"INSTANCE\"},{\"key\":\"email.from\",\"value\":\"noreply@sonarcloud.io\",\"inherited\":true,\"parentValue\":\"noreply@sonarcloud.io\",\"parentOrigin\":\"INSTANCE\"},{\"key\""
+        },
+        {
+          "file": "sonar-autoscan-results.md",
+          "label": "identifier/email (unlisted)",
+          "line": 28,
+          "quote": "NCE\"},{\"key\":\"email.from\",\"value\":\"noreply@sonarcloud.io\",\"inherited\":true,\"parentValue\":\"noreply@sonarcloud.io\",\"parentOrigin\":\"INSTANCE\"},{\"key\":\"email.fromName\",\"value\":\"SonarCloud\",\"inherited\":true"
+        },
+        {
+          "file": "sonar-autoscan-results.md",
+          "label": "identifier/email (unlisted)",
+          "line": 41,
+          "quote": "es\",\"value\":\"30\",\"inherited\":true,\"parentOrigin\":\"INSTANCE\"},{\"key\":\"email.from\",\"value\":\"noreply@sonarcloud.io\",\"inherited\":true,\"parentValue\":\"noreply@sonarcloud.io\",\"parentOrigin\":\"INSTANCE\"},{\"key\""
+        },
+        {
+          "file": "sonar-autoscan-results.md",
+          "label": "identifier/email (unlisted)",
+          "line": 41,
+          "quote": "NCE\"},{\"key\":\"email.from\",\"value\":\"noreply@sonarcloud.io\",\"inherited\":true,\"parentValue\":\"noreply@sonarcloud.io\",\"parentOrigin\":\"INSTANCE\"},{\"key\":\"email.fromName\",\"value\":\"SonarCloud\",\"inherited\":true"
+        }
+      ],
       "project": "Fleet Kit",
-      "status": "pass"
+      "status": "fail",
+      "tag": "Sanitizer needed"
     },
     "repo-template": {
       "in_scope": false,
@@ -44,23 +83,32 @@
     },
     "routines-and-streaks": {
       "excepted": 0,
-      "head_sha": "1efd2dd5023089bf7144df80300a5f8e68ac5fbf",
+      "head_sha": "5b0f019cc3c0536fbdf608f4a98c89537e757fdf",
       "in_scope": true,
-      "manifest_sha": "ab412dcb38dd976ed2f55a7c5a1fdfbac48f4b7b",
+      "manifest_sha": "878382e24bbe2fee7064a75ce855578198eef032",
+      "matches": [
+        {
+          "file": "index.html",
+          "label": "topic/medication",
+          "line": 351,
+          "quote": "{ id: 'demo_task_4', ownerId: 'demo', title: 'Take morning medication', reminder: '07:10', deadline: '07:25', order: 3, done: false, subtasks: [] },"
+        }
+      ],
       "project": "Routines & Streaks",
-      "status": "pass"
+      "status": "fail",
+      "tag": "Sanitizer needed"
     }
   },
   "generated": true,
-  "generated_at": "2026-10-30T10:49:40Z",
+  "generated_at": "2026-10-31T03:18:09Z",
   "note": "GENERATED by fleet-kit/scripts/pull_sanitize.py \u2014 do not edit by hand. Per-repo sanitization-gate results for the fleet's public/demo surfaces (posture `public`), consumed by the private section's generator: a repo recorded as fail keeps its cards in the OWNER dataset tagged 'Sanitizer needed' and is dropped from the family dataset. Regenerate in the same pass as any gate-relevant change; manifest SHAs are recorded so staleness is checkable.",
   "sources": {
-    "aimf-protocol": "2ce5faed3c826fe920291ec6825037ff3a33e4ad",
-    "andrewdhorowitz.github.io": "3d7e0f99247cb214202db3e7aec02dcf74f0ed62",
-    "family-cards": "fabd54151dfee70c2f7003f08c57f428b69d4669",
-    "family-cards-demo": "000f157281f84582619c0c87648fb781428015f5",
-    "fleet-kit": "bbfcf50d2ef7df3a120a638be600f3a83f910bd5",
-    "repo-template": "7361715a600467f1cd53c1887a85abad4ea6cff4",
-    "routines-and-streaks": "ab412dcb38dd976ed2f55a7c5a1fdfbac48f4b7b"
+    "aimf-protocol": "2617fce72f9e572c1ec8aaa8584ea6e751c13c2d",
+    "andrewdhorowitz.github.io": "995b5a869adaf99a33bcc14b3ec5c480e526a4bf",
+    "family-cards": "b4d11295115786e1c331902279a61a2eefceb0cb",
+    "family-cards-demo": "4552fda6a88f8d5921fe817e69e3b9a768cad163",
+    "fleet-kit": "e33611aa717ad4b2ad9b0df84e178cb51d7d1e2a",
+    "repo-template": "d04e1ef57b9d384ae460bcea0216e8baee2650e1",
+    "routines-and-streaks": "878382e24bbe2fee7064a75ce855578198eef032"
   }
 }
