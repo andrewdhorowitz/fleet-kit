@@ -12,6 +12,12 @@
 # Safety: verifies the token first, requires its live permission groups to
 # be EXACTLY {"API Tokens Write", "Account API Tokens Read"} before touching
 # anything, aborts on any other set, and re-reads after the edit to confirm.
+# Method: token updates are PUT (full-object replace), so the PUT body
+# carries the full preserved token — name, status, expires_on, not_before
+# and condition copied verbatim from the read — plus the filtered policies.
+# PATCH is not available on /user/tokens/{id}: Andrew's first run
+# (2026-11-05) failed with error 7001, "Method PATCH not available for
+# that URI."
 # If the API refuses to let a token edit itself, do it in the dashboard:
 # My Profile → API Tokens → Token Admin — owner only → Edit → uncheck
 # Account API Tokens Read → Update (the token value does not change).
@@ -61,7 +67,7 @@ fi
 echo "Admin token verified active (id $own_id)."
 
 # Steps 2-5: read policies, require the exact expected group set, drop the
-# policy carrying "Account API Tokens Read", PATCH, re-read and confirm.
+# policy carrying "Account API Tokens Read", PUT, re-read and confirm.
 python3 -c '
 import json, sys, urllib.request, urllib.error
 
@@ -115,25 +121,30 @@ if remaining != {"API Tokens Write"}:
           ", not exactly {\"API Tokens Write\"} — aborting WITHOUT changes.")
     sys.exit(1)
 
+put_body = {"name": result.get("name"), "policies": new_policies}
+for key in ("status", "expires_on", "not_before", "condition"):
+    if key in result:
+        put_body[key] = result[key]
+
 print("Removing the policy carrying \"" + REMOVE + "\"...")
 try:
-    presp = call("PATCH", {"policies": new_policies})
+    presp = call("PUT", put_body)
 except urllib.error.HTTPError as e:
-    print("PATCH rejected by the API — nothing was changed. API response verbatim:")
+    print("PUT rejected by the API — nothing was changed. API response verbatim:")
     print(e.read().decode("utf-8", "replace"))
     sys.exit(1)
 except Exception as e:
-    print("PATCH failed: " + str(e))
+    print("PUT failed: " + str(e))
     sys.exit(1)
 if not presp.get("success"):
-    print("PATCH rejected by the API — nothing was changed. API response verbatim:")
+    print("PUT rejected by the API — nothing was changed. API response verbatim:")
     print(json.dumps(presp))
     sys.exit(1)
 
 try:
     vresp = call("GET")
 except Exception as e:
-    print("PATCH succeeded but the re-read failed: " + str(e))
+    print("PUT succeeded but the re-read failed: " + str(e))
     sys.exit(1)
 vresult = vresp.get("result") or {}
 now = group_names(vresult.get("policies") or [])
