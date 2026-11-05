@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Term lists for scripts/check_sanitize.py \u2014 the fleet's sanitization gate for public/demo surfaces (Andrew's rule, Oct 29, 2026: public and generic, or it falls back to owner-only). This is the ONE file to maintain. Identifier values are stored as SHA-256 hashes of their normalized forms (lowercase, whitespace-collapsed; phrases hashed as their token sequence) because fleet-kit is a PUBLIC repo \u2014 the same reason family-cards-demo's CI uses generic PII shapes instead of a names list: a forbidden-names list committed in plaintext would itself publish the identifiers. To add an identifier, run: check_sanitize.py --hash-term \"<term or email>\" and paste the digest into the right list. Topic terms are generic category vocabulary (plus two specific service names that already appear in public CI), so they stay plaintext and readable. The allowlist is Andrew's own public identity \u2014 public on purpose \u2014 also plaintext; matching text is masked before scanning.",
+  "about": "Term lists for scripts/check_sanitize.py \u2014 the fleet's sanitization gate for public/demo surfaces (Andrew's rule, Oct 29, 2026: public and generic, or it falls back to owner-only). This is the ONE file to maintain. Identifier values are stored as SHA-256 hashes of their normalized forms (lowercase, whitespace-collapsed; phrases hashed as their token sequence) because fleet-kit is a PUBLIC repo \u2014 the same reason family-cards-demo's CI uses generic PII shapes instead of a names list: a forbidden-names list committed in plaintext would itself publish the identifiers. To add an identifier, run: check_sanitize.py --hash-term \"<term or email>\" and paste the digest into the right list. Generic topic vocabulary stays plaintext and readable, but two specific service names \u2014 real services in Andrew's life \u2014 are stored hashed under topics.hashed_terms instead (moved there Nov 4, 2026, per the F3 ruling): the checker hashes candidate token sequences exactly as it hashes identifiers, so the gate still catches both names while this public file no longer prints them. (An earlier version of this note justified plaintext by observing the names already appear in public CI; that is a reason the CI surface needs its own fix, not a reason to keep naming them here.) The allowlist is Andrew's own public identity \u2014 public on purpose \u2014 also plaintext; matching text is masked before scanning.",
   "allowlist_patterns": [
     "hello@andrewdhorowitz\\.com",
     "andrewdhorowitz3@gmail\\.com",
@@ -41,8 +41,6 @@
       "psychiatrist",
       "psychiatric",
       "support group",
-      "high focus",
-      "creating smiles",
       "medical",
       "diagnosis",
       "diagnosed",
@@ -68,6 +66,11 @@
       "account number",
       "routing number"
     ],
+    "hashed_terms": [
+      "8107e275c479a9c10299c71b35fd24a72df453d56acb91a2dc914cfc7c5f0ddc",
+      "14cee1e99e3368cadb969cda225a7ea66498baf7fa76f8d6c010847904cdff8a"
+    ],
+    "hashed_terms_note": "SHA-256 digests (same normalization as identifiers.hashed_terms: lowercase, whitespace-collapsed token sequence) of two specific service names \u2014 real services in Andrew's life, hashed Nov 4, 2026 under the F3 ruling so this public file no longer names them. The checker hashes candidate token sequences identically, so both still hit as topic class and remain topic-exceptable. To add another, run: check_sanitize.py --hash-term \"<term>\" and paste the digest here.",
     "patterns": [
       {
         "id": "amount",

@@ -24,7 +24,12 @@ Classes:
     Identifier hits can NOT be excepted by a repo-local file.
   topic — off-limit category terms (therapy / support group /
     medical / dental / legal / financial specifics) and amount
-    patterns, from Andrew's standing sensitive categories. Every hit
+    patterns, from Andrew's standing sensitive categories. Two
+    specific service names are the exception to plaintext topic
+    terms: they are stored as SHA-256 digests in topics.hashed_terms
+    (they name real services in Andrew's life), and candidate token
+    sequences are hashed identically, so they still hit as topic
+    class — and, unlike identifiers, remain exceptable. Every hit
     is quoted so false positives stay visible and tunable. A repo may
     carry sanitize-exceptions.json with path+term-scoped, reasoned
     exceptions for the topic class ONLY (e.g. a redaction filter's
@@ -119,6 +124,11 @@ class Terms:
         self.topic_phrases = {}  # normalized token key -> display phrase
         for phrase in topics.get("terms") or []:
             self.topic_phrases[" ".join(norm_tokens(phrase))] = phrase
+        # Specific service names, stored as SHA-256 digests of their
+        # normalized token sequences (topics.hashed_terms) so the
+        # public terms file never names them; scan_line hashes each
+        # candidate n-gram the same way and matches on the digest.
+        self.topic_hashes = set(topics.get("hashed_terms") or [])
         self.topic_patterns = [
             (p["id"], re.compile(p["regex"])) for p in topics.get("patterns") or []
         ]
@@ -172,6 +182,11 @@ def scan_line(line, path, line_no, terms):
             digest = sha(key)
             if digest in terms.ident_hashes:
                 raw.append((start, end, "identifier", key, terms.ident_hashes[digest]))
+            elif digest in terms.topic_hashes:
+                # A hashed topic term (a specific service name): the
+                # matched text itself is the term, which keeps
+                # repo-local topic exceptions working unchanged.
+                raw.append((start, end, "topic", key, "topic/hashed-term"))
             elif key in terms.topic_phrases:
                 raw.append((start, end, "topic", terms.topic_phrases[key],
                             f"topic/{terms.topic_phrases[key]}"))

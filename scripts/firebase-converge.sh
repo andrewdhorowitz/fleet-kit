@@ -135,31 +135,38 @@ except Exception:
 ' "$1" 2>/dev/null || echo "unknown error"
 }
 
+# Redaction for committed output (F3 ruling, Nov 4, 2026): seat
+# addresses are replaced by bare role tags — "[owner seat address]"
+# / "[family seat address]" — never by a masked fragment. An earlier
+# version kept a two-letter prefix plus the domain; in a "family
+# seat" context that still identifies the person, and the results
+# these functions sanitize are committed to a PUBLIC repo.
 _mask_py='
 import os, re, sys
 text = sys.stdin.read()
-for e in os.environ.get("MASK_EMAILS", "").split("\n"):
-    e = e.strip()
-    if not e:
-        continue
-    local, _, dom = e.partition("@")
-    head = local[:2] if len(local) >= 2 else local[:1]
-    text = re.sub(re.escape(e), head + "•••@" + dom, text, flags=re.I)
+for var, tag in (("MASK_OWNERS", "[owner seat address]"),
+                 ("MASK_FAMILY", "[family seat address]")):
+    for e in os.environ.get(var, "").split("\n"):
+        e = e.strip()
+        if e:
+            text = re.sub(re.escape(e), tag, text, flags=re.I)
 sys.stdout.write(text)
 '
 
-# Mask supplied tier addresses out of stdin text (used before any
+# Redact supplied tier addresses out of stdin text (used before any
 # text is committed to the repo).
 mask_stream() {
-  MASK_EMAILS="$(printf '%s\n' "${OWNERS[@]}" "${FAMILY[@]}")" \
+  MASK_OWNERS="$(printf '%s\n' "${OWNERS[@]}")" \
+  MASK_FAMILY="$(printf '%s\n' "${FAMILY[@]}")" \
     python3 -c "$_mask_py"
 }
 
-# Masked, single-line, first ~500 chars of a file (API body or an
+# Redacted, single-line, first ~500 chars of a file (API body or an
 # stderr capture) — safe to embed in a results line.
 file_snippet() {
   [[ -n "${1:-}" && -f "$1" ]] || { echo "no response body"; return; }
-  MASK_EMAILS="$(printf '%s\n' "${OWNERS[@]}" "${FAMILY[@]}")" \
+  MASK_OWNERS="$(printf '%s\n' "${OWNERS[@]}")" \
+  MASK_FAMILY="$(printf '%s\n' "${FAMILY[@]}")" \
     python3 - "$1" <<'PY'
 import os, re, sys
 try:
@@ -167,13 +174,12 @@ try:
 except Exception:
     print("unparseable error body")
     raise SystemExit
-for e in os.environ.get("MASK_EMAILS", "").split("\n"):
-    e = e.strip()
-    if not e:
-        continue
-    local, _, dom = e.partition("@")
-    head = local[:2] if len(local) >= 2 else local[:1]
-    text = re.sub(re.escape(e), head + "•••@" + dom, text, flags=re.I)
+for var, tag in (("MASK_OWNERS", "[owner seat address]"),
+                 ("MASK_FAMILY", "[family seat address]")):
+    for e in os.environ.get(var, "").split("\n"):
+        e = e.strip()
+        if e:
+            text = re.sub(re.escape(e), tag, text, flags=re.I)
 print(" ".join(text.split())[:500])
 PY
 }
@@ -211,16 +217,6 @@ api() {
       echo ""
     } >> "$API_ERR_LOG"
   fi
-}
-
-# jo•••@gmail.com style masking for results output.
-mask_email() {
-  python3 -c '
-import sys
-local, _, dom = sys.argv[1].partition("@")
-head = local[:2] if len(local) >= 2 else local[:1]
-print(head + "•••@" + dom)
-' "$1"
 }
 
 parse_args() {
@@ -848,10 +844,12 @@ print(json.load(open(sys.argv[1])).get("rulesetName", ""))
   fi
 }
 
-# Step 4 — one section_access seat.
+# Step 4 — one section_access seat. Results lines identify the seat
+# by tier and ordinal ONLY ("step 4 owner seat 2 of 2") — never by
+# address or masked fragment: the results file is committed to a
+# public repo (F3 ruling, Nov 4, 2026).
 step4_one() {
-  local email="${1,,}" tier="$2" masked url
-  masked="$(mask_email "$email")"
+  local email="${1,,}" tier="$2" seat_no="$3" seat_total="$4" url
   url="https://firestore.googleapis.com/v1/projects/$PROJECT/databases/(default)/documents/section_access/$email"
   api GET "$url"
   if [[ "$API_CODE" == "200" ]]; then
@@ -862,11 +860,11 @@ tier = (f.get("tier") or {}).get("stringValue")
 enabled = (f.get("enabled") or {}).get("booleanValue")
 sys.exit(0 if tier == sys.argv[2] and enabled is True else 1)
 ' "$API_BODY" "$tier"; then
-      log_line "step 4 $tier seat $masked: ✓ already"
+      log_line "step 4 $tier seat $seat_no of $seat_total: ✓ already"
       return
     fi
   elif [[ "$API_CODE" != "404" ]]; then
-    log_line "step 4 $tier seat $masked: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
+    log_line "step 4 $tier seat $seat_no of $seat_total: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
     mark_incomplete; return
   fi
   python3 - "$WORKDIR/s4-body.json" "$PROJECT" "$email" "$tier" <<'PY'
@@ -880,7 +878,7 @@ json.dump(body, open(sys.argv[1], "w"))
 PY
   api PATCH "$url?updateMask.fieldPaths=tier&updateMask.fieldPaths=enabled" "$WORKDIR/s4-body.json"
   if [[ "$API_CODE" != "200" ]]; then
-    log_line "step 4 $tier seat $masked: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
+    log_line "step 4 $tier seat $seat_no of $seat_total: – skipped (HTTP $API_CODE: $(err_msg) | body: $(err_snippet))"
     mark_incomplete; return
   fi
   api GET "$url"
@@ -891,9 +889,9 @@ tier = (f.get("tier") or {}).get("stringValue")
 enabled = (f.get("enabled") or {}).get("booleanValue")
 sys.exit(0 if tier == sys.argv[2] and enabled is True else 1)
 ' "$API_BODY" "$tier"; then
-    log_line "step 4 $tier seat $masked: ✓ applied"
+    log_line "step 4 $tier seat $seat_no of $seat_total: ✓ applied"
   else
-    log_line "step 4 $tier seat $masked: – skipped (seat did not verify after write)"
+    log_line "step 4 $tier seat $seat_no of $seat_total: – skipped (seat did not verify after write)"
     mark_incomplete
   fi
 }
@@ -903,9 +901,11 @@ step4() {
     log_line "step 4 section_access seats: – skipped (no --owner/--family addresses supplied)"
     mark_incomplete; return
   fi
-  local email
-  for email in "${OWNERS[@]}"; do step4_one "$email" owner; done
-  for email in "${FAMILY[@]}"; do step4_one "$email" family; done
+  local email i
+  i=0
+  for email in "${OWNERS[@]}"; do i=$((i + 1)); step4_one "$email" owner "$i" "${#OWNERS[@]}"; done
+  i=0
+  for email in "${FAMILY[@]}"; do i=$((i + 1)); step4_one "$email" family "$i" "${#FAMILY[@]}"; done
 }
 
 # Step 5 — Muse's Firebase access: store the SAME service-account
