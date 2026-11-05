@@ -28,7 +28,15 @@ if [ "$self_id" = "$TARGET_ID" ]; then
   unset tok; exit 1
 fi
 
-name=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens/$TARGET_ID" -H "Authorization: Bearer $tok" | sed -n 's/.*"name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+name=$(python3 -c '
+import json, sys, urllib.request
+req = urllib.request.Request("https://api.cloudflare.com/client/v4/user/tokens/" + sys.argv[2])
+req.add_header("Authorization", "Bearer " + sys.argv[1])
+try:
+    print(json.load(urllib.request.urlopen(req, timeout=30)).get("result", {}).get("name", ""))
+except Exception:
+    print("")
+' "$tok" "$TARGET_ID")
 if [ "$name" != "$EXPECTED_NAME" ]; then
   echo "Target name is '$name', not '$EXPECTED_NAME' — nothing deleted."
   unset tok; exit 1
