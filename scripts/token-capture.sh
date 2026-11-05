@@ -25,4 +25,4 @@ fi
 printf '%s\n' "$tok" > "$HOME/blah.txt"
 chmod 600 "$HOME/blah.txt"
 unset tok
-echo "Wrote $(wc -c < "$HOME/blah.txt") characters to ~/blah.txt (expect 41 for a standard token)."
+echo "Wrote $(wc -c < "$HOME/blah.txt") characters to ~/blah.txt (character count only — the value is never printed)."
