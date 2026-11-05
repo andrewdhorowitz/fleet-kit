@@ -1,6 +1,10 @@
-clarity-pilot-index-converge results — 2026-11-05 12:58:23 EST
-flag: INCOMPLETE
+clarity-pilot-index-converge results — 2026-11-05 13:00:48 EST
+flag: SUCCESS
 target: project gen-lang-client-0590645241 — field overrides members.uid + invites.email (COLLECTION_GROUP, ASC+DESC); indexes only, rules untouched
 setup: ✓ already (git, python3, node, firebase-tools present)
-auth: – skipped (firebase login did not register a session — re-run this script and complete the browser sign-in)
-summary: INCOMPLETE — see above; full error detail in clarity-pilot-index-converge-errors.txt
+auth: ✓ applied (signed in via firebase login --no-localhost)
+project: ✓ already (gen-lang-client-0590645241 visible to the signed-in account)
+indexes: check — overrides in project: 0 field override entr(ies); required collection-group entries present: 0/4; overrides incomplete, deploying
+indexes: ✓ applied (firebase deploy --only firestore:indexes completed)
+verify: ✓ already (all four collection-group overrides present and serving — overrides in project: 2 field override entr(ies); required collection-group entries present: 4/4)
+summary: OK — the members.uid and invites.email collection-group overrides are in place; final proof is a fresh sign-in in the Homework Clarity app (the family should load)
