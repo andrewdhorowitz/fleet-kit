@@ -1,0 +1,32 @@
+clarity-pilot-index-converge errors — 2026-11-05 12:59:43 EST
+
+== run stderr ==
+
+== detail log ==
+=== setup diagnostics (command -v)
+git: /data/data/com.termux/files/usr/bin/git
+python3: /data/data/com.termux/files/usr/bin/python3
+node: /data/data/com.termux/files/usr/bin/node
+npm: /data/data/com.termux/files/usr/bin/npm
+firebase: /data/data/com.termux/files/usr/bin/firebase
+pkg: /data/data/com.termux/files/usr/bin/pkg
+firebase --version: 15.34.2
+
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+=== auth: running firebase login --no-localhost (interactive)
+=== auth: firebase login exited 0
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects
+- Preparing the list of your Firebase projects
+✖ Preparing the list of your Firebase projects

@@ -1,0 +1,6 @@
+clarity-pilot-index-converge results — 2026-11-05 12:58:23 EST
+flag: INCOMPLETE
+target: project gen-lang-client-0590645241 — field overrides members.uid + invites.email (COLLECTION_GROUP, ASC+DESC); indexes only, rules untouched
+setup: ✓ already (git, python3, node, firebase-tools present)
+auth: – skipped (firebase login did not register a session — re-run this script and complete the browser sign-in)
+summary: INCOMPLETE — see above; full error detail in clarity-pilot-index-converge-errors.txt
