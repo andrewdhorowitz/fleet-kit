@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # delete-agent-token.sh — OWNER ONLY, one-off. Deletes the "Cloudflare Agent
 # Token - 2026-11-05" USER token (id below) using the admin token read from
-# ~/blah.txt. Ruled by Andrew 2026-11-05 (the token was silently minted by
+# ~/cf-token-admin.txt. Ruled by Andrew 2026-11-05 (the token was silently minted by
 # Cloudflare's in-dashboard "Ask AI" assistant; read-only, never expires,
 # unused by anything in the fleet).
 # Safety: verifies the admin token first, refuses if the target is the admin
@@ -11,11 +11,11 @@ set -u
 TARGET_ID="fdcbddd0e2f5a40e98af01a8afa22e11"
 EXPECTED_NAME="Cloudflare Agent Token - 2026-11-05"
 
-if [ ! -f "$HOME/blah.txt" ]; then
-  echo "No ~/blah.txt — run scripts/token-capture.sh first (paste the admin token from 1Password)."
+if [ ! -f "$HOME/cf-token-admin.txt" ]; then
+  echo "No ~/cf-token-admin.txt — run scripts/token-capture.sh first (paste the admin token from 1Password)."
   exit 1
 fi
-tok=$(tr -d '\r\n ' < "$HOME/blah.txt")
+tok=$(tr -d '\r\n ' < "$HOME/cf-token-admin.txt")
 
 self=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization: Bearer $tok")
 case "$self" in
