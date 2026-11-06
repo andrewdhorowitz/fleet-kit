@@ -107,23 +107,32 @@ if [ -z "$TOKEN" ]; then
   impossible "no Google auth path on phone (no gcloud session, no firebase login) — Muse needs Andrew to sign in once (gcloud or firebase) in Termux"
 fi
 
+API_STATUS="000"
 api() { # method url [json-body] -> body on stdout; status in $API_STATUS
+  # NOTE: called via $(...) command substitution, so it runs in a
+  # subshell — status + body are therefore written to files and the
+  # CALLER reads them back with api_read. Body goes to $API_BODY_FILE.
   local method="$1" url="$2" body="${3:-}"
   local out
   if [ -n "$body" ]; then
     out="$(curl -sS -w $'\n%{http_code}' -X "$method" \
       -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-      -d "$body" "$url" 2>/dev/null)" || { API_STATUS="000"; echo ""; return; }
+      -d "$body" "$url" 2>/dev/null)" || out=""
   else
     out="$(curl -sS -w $'\n%{http_code}' -X "$method" \
-      -H "Authorization: Bearer $TOKEN" "$url" 2>/dev/null)" || { API_STATUS="000"; echo ""; return; }
+      -H "Authorization: Bearer $TOKEN" "$url" 2>/dev/null)" || out=""
   fi
-  API_STATUS="$(printf '%s' "$out" | tail -1)"
-  printf '%s' "$out" | sed '$d'
+  if [ -z "$out" ]; then
+    printf '000' > "$API_STATUS_FILE"; : > "$API_BODY_FILE"; return
+  fi
+  printf '%s' "$out" | tail -1 > "$API_STATUS_FILE"
+  printf '%s' "$out" | sed '$d' > "$API_BODY_FILE"
 }
+API_STATUS_FILE="$(mktemp)"; API_BODY_FILE="$(mktemp)"
+api_read() { API_STATUS="$(cat "$API_STATUS_FILE")"; RESP="$(cat "$API_BODY_FILE")"; }
 
 # ---------- project visibility ----------
-RESP="$(api GET "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJECT")"
+api GET "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJECT"; api_read
 if [ "$API_STATUS" != "200" ]; then
   echo "project check: HTTP $API_STATUS"
   echo "$RESP" | head -c 400; echo
@@ -133,14 +142,14 @@ step project "✓ already (project visible to signed-in account)"
 pace 20
 
 # ---------- step 1: the service account ----------
-RESP="$(api GET "https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts/$SA_EMAIL")"
+api GET "https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts/$SA_EMAIL"; api_read
 if [ "$API_STATUS" = "200" ]; then
   step service-account "✓ already ($SA_EMAIL exists)"
   mark SA_OK
 elif [ "$API_STATUS" = "404" ]; then
   pace 30
-  RESP="$(api POST "https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts" \
-    "{\"accountId\":\"$SA_ID\",\"serviceAccount\":{\"displayName\":\"Play API (fleet automation)\",\"description\":\"Dedicated Play Developer API service account. API role only; no Play Console grants. Created by play-api-converge.sh Nov 6, 2026.\"}}")"
+  api POST "https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts" \
+    "{\"accountId\":\"$SA_ID\",\"serviceAccount\":{\"displayName\":\"Play API (fleet automation)\",\"description\":\"Dedicated Play Developer API service account. API role only; no Play Console grants. Created by play-api-converge.sh Nov 6, 2026.\"}}"; api_read
   if [ "$API_STATUS" = "200" ] || [ "$API_STATUS" = "201" ]; then
     step service-account "✓ applied (created $SA_EMAIL)"
     mark SA_OK
@@ -168,8 +177,8 @@ else
   pace 45
   TMPKEY="$(mktemp "$HOME/.play-api-key.XXXXXX.json")"
   chmod 600 "$TMPKEY"
-  RESP="$(api POST "https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts/$SA_EMAIL/keys" \
-    '{"privateKeyType":"TYPE_GOOGLE_CREDENTIALS_FILE","keyAlgorithm":"KEY_ALG_RSA_2048"}')"
+  api POST "https://iam.googleapis.com/v1/projects/$PROJECT/serviceAccounts/$SA_EMAIL/keys" \
+    '{"privateKeyType":"TYPE_GOOGLE_CREDENTIALS_FILE","keyAlgorithm":"KEY_ALG_RSA_2048"}'; api_read
   if [ "$API_STATUS" != "200" ] && [ "$API_STATUS" != "201" ]; then
     rm -f "$TMPKEY"
     echo "key create failed: HTTP $API_STATUS"
@@ -219,7 +228,7 @@ PYEOF
 fi
 
 # ---------- step 3: API enable check (read-only) ----------
-RESP="$(api GET "https://serviceusage.googleapis.com/v1/projects/$PROJECT/services/androidpublisher.googleapis.com")"
+api GET "https://serviceusage.googleapis.com/v1/projects/$PROJECT/services/androidpublisher.googleapis.com"; api_read
 if printf '%s' "$RESP" | grep -q '"state": "ENABLED"'; then
   step androidpublisher-api "✓ already (Google Play Android Developer API enabled on $PROJECT)"
 else

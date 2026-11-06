@@ -1,12 +1,19 @@
 # owner-loop result
 # job: 20261106-1605-play-api-converge.sh
-# started: 2026-11-06 16:04:25 EST
-# finished: 2026-11-06 16:04:27 EST
-# exit code: 1
+# started: 2026-11-06 16:07:31 EST
+# finished: 2026-11-06 16:09:55 EST
+# exit code: 0
 # ---- job output ----
 job: play-api-converge.sh
 project: play-publisher-513614
 console-invite: play-api@play-publisher-513614.iam.gserviceaccount.com
 step gh: ✓ applied (gh CLI present and authenticated)
 auth: via firebase login
-/data/data/com.termux/files/home/work/fleet-kit/owner-queue/running/20261106-1605-play-api-converge.sh: line 127: API_STATUS: unbound variable
+step project: ✓ already (project visible to signed-in account)
+step service-account: ✓ applied (created play-api@play-publisher-513614.iam.gserviceaccount.com)
+step key: ✓ applied (one key minted into a phone-only temp file)
+step secret-set: ✓ applied (PLAY_API_SERVICE_ACCOUNT_JSON set on andrewdhorowitz/fleet-kit)
+step secret: ✓ applied (PLAY_API_SERVICE_ACCOUNT_JSON verified by name on andrewdhorowitz/fleet-kit; temp key shredded)
+step androidpublisher-api: ✓ already (Google Play Android Developer API enabled on play-publisher-513614)
+console-invite: play-api@play-publisher-513614.iam.gserviceaccount.com
+result: SUCCESS (service account ready; key deposited as PLAY_API_SERVICE_ACCOUNT_JSON on andrewdhorowitz/fleet-kit; values never printed)
