@@ -39,4 +39,18 @@ jobs:
       - name: Install auth dependency
         run: pip install --quiet google-auth cryptography
       - name: Run read probe
-        run: python scripts/play_api_probe.py
+        id: probe
+        continue-on-error: true
+        run: python scripts/play_api_probe.py 2>&1 | tee probe-output.txt
+      - name: Publish probe output as job summary
+        if: always()
+        run: |
+          {
+            echo '## Play API probe output'
+            echo '```'
+            cat probe-output.txt || echo '(no output captured)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail the run if the probe failed
+        if: steps.probe.outcome == 'failure'
+        run: exit 1
