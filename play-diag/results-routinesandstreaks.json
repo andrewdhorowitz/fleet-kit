@@ -1,0 +1,57 @@
+{
+ "edits_delete_http": 204,
+ "edits_insert_http": 200,
+ "errors": [],
+ "generated_at": "2026-11-06T23:16:53.274807+00:00",
+ "package": "com.andrewdhorowitz.routinesandstreaks",
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
+ "testers": {
+  "alpha": {
+   "googleGroups": [],
+   "http": 200,
+   "testers": []
+  },
+  "beta": {
+   "googleGroups": [],
+   "http": 200,
+   "testers": []
+  },
+  "internal": {
+   "googleGroups": [],
+   "http": 200,
+   "testers": []
+  },
+  "production": {
+   "error_body": "{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The track 'production' is not a testing track.\",\n    \"status\": \"INVALID_ARGUMENT\"\n  }\n}\n",
+   "http": 400
+  }
+ },
+ "tracks": [
+  {
+   "releases": [],
+   "track": "production"
+  },
+  {
+   "releases": [],
+   "track": "beta"
+  },
+  {
+   "releases": [],
+   "track": "alpha"
+  },
+  {
+   "releases": [
+    {
+     "name": "1.0.0",
+     "status": "completed",
+     "userFraction": null,
+     "versionCodes": [
+      "1"
+     ]
+    }
+   ],
+   "track": "internal"
+  }
+ ],
+ "tracks_list_http": 200
+}
