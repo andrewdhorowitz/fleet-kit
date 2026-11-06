@@ -1,0 +1,12 @@
+# owner-loop result
+# job: 20261106-1605-play-api-converge.sh
+# started: 2026-11-06 16:04:25 EST
+# finished: 2026-11-06 16:04:27 EST
+# exit code: 1
+# ---- job output ----
+job: play-api-converge.sh
+project: play-publisher-513614
+console-invite: play-api@play-publisher-513614.iam.gserviceaccount.com
+step gh: ✓ applied (gh CLI present and authenticated)
+auth: via firebase login
+/data/data/com.termux/files/home/work/fleet-kit/owner-queue/running/20261106-1605-play-api-converge.sh: line 127: API_STATUS: unbound variable
