@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Play API write test: add Bailey to Home Helper's internal-track tester list.
+"""Play API tester write: add TARGET_EMAIL (env) to an app's internal-track tester list.
 
 Runs inside GitHub Actions (play-api-write workflow) with the
 PLAY_API_SERVICE_ACCOUNT_JSON secret in env. The key value is never printed.
@@ -23,7 +23,7 @@ import urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from play_api_probe import get_access_token, API
 
-TARGET = "baileynhorowitz@gmail.com"
+TARGET = os.environ.get("WRITE_TARGET_EMAIL", "fourpshot@gmail.com")
 TRACK = "internal"
 
 
