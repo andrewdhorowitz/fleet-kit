@@ -27,7 +27,7 @@ import base64
 
 API = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications"
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
-TRACKS = ["internal", "alpha", "beta", "production"]
+TRACKS = ["internal", "alpha", "beta"]
 
 
 def b64url(data: bytes) -> str:
@@ -76,7 +76,13 @@ def call(method: str, url: str, token: str):
     req = urllib.request.Request(url, method=method, headers={"Authorization": f"Bearer {token}"})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.status, json.load(resp)
+            raw = resp.read().decode("utf-8", "replace")
+            if not raw.strip():
+                return resp.status, {}
+            try:
+                return resp.status, json.loads(raw)
+            except json.JSONDecodeError:
+                return resp.status, {"raw": raw[:200]}
     except urllib.error.HTTPError as err:
         detail = err.read().decode("utf-8", "replace")[:400]
         return err.code, {"error_body": detail}
@@ -116,8 +122,7 @@ def main() -> int:
             if s == 200:
                 ok_reads += 1
                 groups = res.get("googleGroups") or []
-                print(f"testers.get[{track}]: HTTP 200 — googleGroups: {len(groups)}, "
-                      f"managed emails present: {'googleGroups' not in res or not groups}")
+                print(f"testers.get[{track}]: HTTP 200 — googleGroups: {len(groups)}")
             else:
                 msg = res.get("error_body", "")[:200]
                 print(f"testers.get[{track}]: HTTP {s} {msg}")
