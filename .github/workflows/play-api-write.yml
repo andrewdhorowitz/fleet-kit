@@ -1,0 +1,56 @@
+name: play-api-write
+
+# Manual only. The approved end-to-end write test for the play-api
+# service account: adds baileynhorowitz@gmail.com to the chosen app's
+# internal-track tester list (scripts/play_api_write.py), commits the
+# edit, and verifies membership. The PLAY_API_SERVICE_ACCOUNT_JSON
+# secret is env-only and never printed; output is HTTP statuses,
+# counts, and a boolean membership check.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Android package name for the write test"
+        required: true
+        default: "com.andrewdhorowitz.homehelper"
+
+permissions:
+  contents: read
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    env:
+      PLAY_API_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_API_SERVICE_ACCOUNT_JSON }}
+      WRITE_PACKAGE: ${{ inputs.package }}
+    steps:
+      - name: Check secret present
+        run: |
+          if [ -z "$PLAY_API_SERVICE_ACCOUNT_JSON" ]; then
+            echo "PLAY_API_SERVICE_ACCOUNT_JSON secret is not set on this repo."
+            exit 1
+          fi
+          echo "Secret present."
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install auth dependency
+        run: pip install --quiet google-auth cryptography
+      - name: Run write test
+        id: writetest
+        continue-on-error: true
+        run: python scripts/play_api_write.py 2>&1 | tee write-output.txt
+      - name: Publish write output as job summary
+        if: always()
+        run: |
+          {
+            echo '## Play API write output'
+            echo '```'
+            cat write-output.txt || echo '(no output captured)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail the run if the write test failed
+        if: steps.writetest.outcome == 'failure'
+        run: exit 1
