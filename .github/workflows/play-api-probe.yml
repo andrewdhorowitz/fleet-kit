@@ -1,0 +1,42 @@
+name: play-api-probe
+
+# Manual only. Read probe for the dedicated play-api service account:
+# runs scripts/play_api_probe.py with the fleet-kit
+# PLAY_API_SERVICE_ACCOUNT_JSON secret in env. The key value never
+# appears in logs — the script prints only HTTP statuses and tester
+# list counts. The probe inserts a disposable edit, reads tester
+# lists, and deletes the edit; nothing is ever committed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Android package name to probe"
+        required: true
+        default: "com.andrewdhorowitz.homehelper"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      PLAY_API_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_API_SERVICE_ACCOUNT_JSON }}
+      PROBE_PACKAGE: ${{ inputs.package }}
+    steps:
+      - name: Check secret present
+        run: |
+          if [ -z "$PLAY_API_SERVICE_ACCOUNT_JSON" ]; then
+            echo "PLAY_API_SERVICE_ACCOUNT_JSON secret is not set on this repo."
+            exit 1
+          fi
+          echo "Secret present."
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install auth dependency
+        run: pip install --quiet google-auth cryptography
+      - name: Run read probe
+        run: python scripts/play_api_probe.py
