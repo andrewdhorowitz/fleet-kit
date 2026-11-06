@@ -1,9 +1,9 @@
 name: play-api-write
 
-# Manual only. The approved end-to-end write test for the play-api
-# service account: adds baileynhorowitz@gmail.com to the chosen app's
-# internal-track tester list (scripts/play_api_write.py), commits the
-# edit, and verifies membership. The PLAY_API_SERVICE_ACCOUNT_JSON
+# Manual only. Tester-list write for the play-api service account:
+# adds WRITE_TARGET_EMAIL (default fourpshot@gmail.com) to the chosen
+# app's internal-track tester list (scripts/play_api_write.py), commits
+# the edit, and verifies membership. The PLAY_API_SERVICE_ACCOUNT_JSON
 # secret is env-only and never printed; output is HTTP statuses,
 # counts, and a boolean membership check.
 
@@ -11,9 +11,13 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: "Android package name for the write test"
+        description: "Android package name for the tester write"
         required: true
         default: "com.andrewdhorowitz.homehelper"
+      target_email:
+        description: "Tester email to add to the internal track"
+        required: false
+        default: "fourpshot@gmail.com"
 
 permissions:
   contents: read
@@ -24,6 +28,7 @@ jobs:
     env:
       PLAY_API_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_API_SERVICE_ACCOUNT_JSON }}
       WRITE_PACKAGE: ${{ inputs.package }}
+      WRITE_TARGET_EMAIL: ${{ inputs.target_email }}
     steps:
       - name: Check secret present
         run: |
