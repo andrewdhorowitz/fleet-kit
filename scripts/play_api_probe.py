@@ -84,16 +84,29 @@ def call(method: str, url: str, token: str):
 
 def main() -> int:
     package = os.environ["PROBE_PACKAGE"]
-    sa = json.loads(os.environ["PLAY_API_SERVICE_ACCOUNT_JSON"])
+    try:
+        sa = json.loads(os.environ["PLAY_API_SERVICE_ACCOUNT_JSON"])
+    except Exception as exc:
+        print(f"probe stage FAILED: secret JSON parse — {type(exc).__name__}: {exc}")
+        return 1
     print(f"probe package: {package}")
     print(f"service account: {sa.get('client_email')}")
-    token = get_access_token(sa)
+    try:
+        token = get_access_token(sa)
+    except Exception as exc:
+        detail = ""
+        if isinstance(exc, urllib.error.HTTPError):
+            detail = exc.read().decode("utf-8", "replace")[:300]
+        print(f"probe stage FAILED: oauth token exchange — {type(exc).__name__}: {exc} {detail}")
+        return 1
     print("oauth: token acquired")
 
     status, edit = call("POST", f"{API}/{package}/edits", token)
     print(f"edits.insert: HTTP {status}")
     if status != 200:
         print(json.dumps(edit)[:400])
+        print("probe stage FAILED: edits.insert (API rejected the edit — "
+              "usually service account not linked in Play Console, or grant not yet propagated)")
         return 1
     edit_id = edit["id"]
     ok_reads = 0
