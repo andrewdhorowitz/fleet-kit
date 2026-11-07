@@ -1,0 +1,18 @@
+{
+ "edits_delete_http": 204,
+ "errors": [],
+ "generated_at": "2026-11-07T03:02:44.310164+00:00",
+ "listings": [
+  {
+   "language": "en-US",
+   "title": "Homework Clarity"
+  }
+ ],
+ "listings_list_http": 200,
+ "mode": "read",
+ "new_title": "Routines Clarity",
+ "old_title": "Routines and Streaks",
+ "package": "com.andrewdhorowitz.homeworkclarity",
+ "read_edits_insert_http": 200,
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com"
+}
