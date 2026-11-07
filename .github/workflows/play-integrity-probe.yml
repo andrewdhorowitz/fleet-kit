@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install auth dependency
-        run: pip install --quiet google-auth cryptography
+        run: pip install --quiet google-auth cryptography requests
       - name: Run diagnostic
         id: diag
         continue-on-error: true
