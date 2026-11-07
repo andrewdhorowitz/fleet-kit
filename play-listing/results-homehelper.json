@@ -1,39 +1,18 @@
 {
- "already_new_languages": [],
- "edits_commit_http": 403,
  "edits_delete_http": 204,
- "errors": [
-  "edits.commit: {\"error_body\": \"{\\n  \\\"error\\\": {\\n    \\\"code\\\": 403,\\n    \\\"message\\\": \\\"The caller does not have permission\\\",\\n    \\\"status\\\": \\\"PERMISSION_DENIED\\\"\\n  }\\n}\\n\"}"
- ],
- "generated_at": "2026-11-07T03:02:06.293028+00:00",
- "listings_before": [
-  {
-   "language": "en-US",
-   "title": "Andrew's Home Helper"
-  }
- ],
- "listings_list_http": 200,
- "listings_staged": [
+ "errors": [],
+ "generated_at": "2026-11-07T03:04:22.454530+00:00",
+ "listings": [
   {
    "language": "en-US",
    "title": "Home Helper"
   }
  ],
- "matching_languages": [
-  "en-US"
- ],
- "mode": "write",
- "new_title": "Home Helper",
- "old_title": "Andrew's Home Helper",
- "other_titles": [],
+ "listings_list_http": 200,
+ "mode": "read",
+ "new_title": "Routines Clarity",
+ "old_title": "Routines and Streaks",
  "package": "com.andrewdhorowitz.homehelper",
- "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
- "staged_listings_list_http": 200,
- "updates": [
-  {
-   "language": "en-US",
-   "listings_update_http": 200
-  }
- ],
- "write_edits_insert_http": 200
+ "read_edits_insert_http": 200,
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com"
 }
