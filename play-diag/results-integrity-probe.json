@@ -1,8 +1,11 @@
 {
- "generated_at": "2026-11-07T16:16:52.291357+00:00",
- "oauth": "FAILED: ImportError: The requests library is not installed from please install the requests package to use the requests transport.",
+ "decode_body": "{\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"Google Play Integrity API has not been used in project 254077645555 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/playintegrity.googleapis.com/overview?project=254077645555 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\n    \"status\": \"PERMISSION_DENIED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.ErrorInfo\",\n        \"reason\": \"SERVICE_DISABLED\",\n        \"domain\": \"googleapis.com\",\n        \"metadata\": {\n          \"containerInfo\": \"254077645555\",\n          \"activationUrl\": \"https://console.developers.google.com/apis/api/playintegrity.googleapis.com/overview?project=254077645555\",\n          \"se",
+ "decode_http": 403,
+ "generated_at": "2026-11-07T16:18:31.820009+00:00",
+ "oauth": "token acquired (scope playintegrity)",
  "package": "com.andrewdhorowitz.bridge",
  "probe": "decodeIntegrityToken with a dummy token",
  "sa_project": "play-publisher-513614",
- "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com"
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
+ "verdict": "BLOCKED: Play Integrity API not enabled in the SA project"
 }
