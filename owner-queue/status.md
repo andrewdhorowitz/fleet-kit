@@ -1,7 +1,7 @@
 # owner-loop status
-flag: STOPPED
-updated: 2026-11-06 23:35:24 EST
-loop: started 2026-11-06 21:28:05 EST · round 125 · restarts 0
-last job: 20261106-2230-tb-fcm-register.sh — exit 0 at 2026-11-06 22:31:31 EST
+flag: ALIVE
+updated: 2026-11-07 13:04:50 EST
+loop: started 2026-11-07 13:04:50 EST · round 0 · restarts 0
+last job: none yet
 pending: 0 job(s) · running: none
-last push: ok 2026-11-06 23:32:23 EST
+last push: never
