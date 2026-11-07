@@ -1,39 +1,18 @@
 {
- "already_new_languages": [],
- "edits_commit_http": 403,
  "edits_delete_http": 204,
- "errors": [
-  "edits.commit: {\"error_body\": \"{\\n  \\\"error\\\": {\\n    \\\"code\\\": 403,\\n    \\\"message\\\": \\\"The caller does not have permission\\\",\\n    \\\"status\\\": \\\"PERMISSION_DENIED\\\"\\n  }\\n}\\n\"}"
- ],
- "generated_at": "2026-11-07T02:16:56.006158+00:00",
- "listings_before": [
+ "errors": [],
+ "generated_at": "2026-11-07T02:17:38.943764+00:00",
+ "listings": [
   {
    "language": "en-US",
    "title": "Routines & Streaks"
   }
  ],
  "listings_list_http": 200,
- "listings_staged": [
-  {
-   "language": "en-US",
-   "title": "Routines Clarity"
-  }
- ],
- "matching_languages": [
-  "en-US"
- ],
- "mode": "write",
+ "mode": "read",
  "new_title": "Routines Clarity",
  "old_title": "Routines & Streaks",
- "other_titles": [],
  "package": "com.andrewdhorowitz.routinesandstreaks",
- "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
- "staged_listings_list_http": 200,
- "updates": [
-  {
-   "language": "en-US",
-   "listings_update_http": 200
-  }
- ],
- "write_edits_insert_http": 200
+ "read_edits_insert_http": 200,
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com"
 }
