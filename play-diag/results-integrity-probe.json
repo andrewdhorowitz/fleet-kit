@@ -1,0 +1,8 @@
+{
+ "generated_at": "2026-11-07T16:16:52.291357+00:00",
+ "oauth": "FAILED: ImportError: The requests library is not installed from please install the requests package to use the requests transport.",
+ "package": "com.andrewdhorowitz.bridge",
+ "probe": "decodeIntegrityToken with a dummy token",
+ "sa_project": "play-publisher-513614",
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com"
+}
