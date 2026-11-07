@@ -1,0 +1,25 @@
+# owner-loop result
+# job: 20261107-1345-tb-fcm-register-bridge.sh
+# started: 2026-11-07 13:44:22 EST
+# finished: 2026-11-07 13:44:41 EST
+# exit code: 0
+# ---- job output ----
+job: 20261107-1345-tb-fcm-register-bridge.sh
+started: 2026-11-07 13:44:22 EST
+target: Firebase project family-routines-app, package com.andrewdhorowitz.bridge -> secrets on andrewdhorowitz/text-bridge
+step gh: ok (gh CLI present and authenticated)
+step keyfile: ok (Admin SDK keyfile found; project_id verified as family-routines-app; values not printed)
+step auth: ok (access token minted from the Admin SDK key; token never printed)
+step create-app: ok (Android app for com.andrewdhorowitz.bridge registered in family-routines-app — exactly one create)
+step config: ok (google-services config fetched; app ID, API key, sender ID, project ID extracted to the private temp dir; values not printed)
+step deposit TB_FCM_APP_ID: ok (set on andrewdhorowitz/text-bridge from the com.andrewdhorowitz.bridge config; verified by name)
+step deposit TB_FCM_API_KEY: ok (set on andrewdhorowitz/text-bridge from the com.andrewdhorowitz.bridge config; verified by name)
+step deposit TB_FCM_SENDER_ID: ok (set on andrewdhorowitz/text-bridge from the com.andrewdhorowitz.bridge config; verified by name)
+step deposit TB_FCM_PROJECT_ID: ok (set on andrewdhorowitz/text-bridge from the com.andrewdhorowitz.bridge config; verified by name)
+summary (names + status only; no values were printed or stored):
+  TB_FCM_APP_ID: present on andrewdhorowitz/text-bridge
+  TB_FCM_API_KEY: present on andrewdhorowitz/text-bridge
+  TB_FCM_SENDER_ID: present on andrewdhorowitz/text-bridge
+  TB_FCM_PROJECT_ID: present on andrewdhorowitz/text-bridge
+result: SUCCESS (Bridge package FCM registration complete; all four secrets present on andrewdhorowitz/text-bridge, set from the com.andrewdhorowitz.bridge config)
+finished: 2026-11-07 13:44:41 EST
