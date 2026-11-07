@@ -1,0 +1,81 @@
+name: play-api-listing
+
+# Manual only. Store-listing title read/fix for the play-api service
+# account (scripts/play_api_listing.py). Read mode reports the current
+# per-language listings; write mode replaces ONLY the listing title
+# (old -> new) for listings carrying the exact old title, commits the
+# Play edit, and verifies with a fresh read. Findings are committed as
+# JSON under play-listing/ in this repo, because job logs and step
+# summaries are not readable through the fleet PAT. The
+# PLAY_API_SERVICE_ACCOUNT_JSON secret is env-only and never printed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Android package name"
+        required: true
+        default: "com.andrewdhorowitz.routinesandstreaks"
+      mode:
+        description: "read = report listings only; write = retitle + commit + verify"
+        required: true
+        type: choice
+        options:
+          - read
+          - write
+        default: "read"
+      old_title:
+        description: "Exact current listing title to replace (write mode)"
+        required: false
+        default: "Routines and Streaks"
+      new_title:
+        description: "Replacement listing title (write mode)"
+        required: false
+        default: "Routines Clarity"
+
+permissions:
+  contents: write
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    env:
+      PLAY_API_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_API_SERVICE_ACCOUNT_JSON }}
+      LISTING_PACKAGE: ${{ inputs.package }}
+      LISTING_MODE: ${{ inputs.mode }}
+      LISTING_OLD_TITLE: ${{ inputs.old_title }}
+      LISTING_NEW_TITLE: ${{ inputs.new_title }}
+      LISTING_OUT_DIR: play-listing
+    steps:
+      - name: Check secret present
+        run: |
+          if [ -z "$PLAY_API_SERVICE_ACCOUNT_JSON" ]; then
+            echo "PLAY_API_SERVICE_ACCOUNT_JSON secret is not set on this repo."
+            exit 1
+          fi
+          echo "Secret present."
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install auth dependency
+        run: pip install --quiet google-auth cryptography
+      - name: Run listing tool
+        id: listing
+        continue-on-error: true
+        run: python scripts/play_api_listing.py 2>&1 | tee listing-output.txt
+      - name: Commit results JSON to repo
+        if: always()
+        run: |
+          git config user.name "play-api-listing"
+          git config user.email "play-api-listing@users.noreply.github.com"
+          git add play-listing/ || true
+          if git diff --cached --quiet; then
+            echo "No result changes to commit."
+          else
+            git commit -m "play-api-listing results ${{ github.run_id }}"
+            git push origin HEAD:main
+          fi
+      - name: Fail the run if the listing tool failed
+        if: steps.listing.outcome == 'failure'
+        run: exit 1
