@@ -1,43 +1,18 @@
 {
- "already_new_languages": [
-  "en-US"
- ],
- "edits_commit_http": 200,
- "errors": [
-  "verify listings.list: {\"error_body\": \"{\\n  \\\"error\\\": {\\n    \\\"code\\\": 503,\\n    \\\"message\\\": \\\"The service is currently unavailable.\\\",\\n    \\\"status\\\": \\\"UNAVAILABLE\\\"\\n  }\\n}\\n\"}"
- ],
- "generated_at": "2026-11-07T03:54:01.809484+00:00",
- "listings_before": [
+ "edits_delete_http": 204,
+ "errors": [],
+ "generated_at": "2026-11-07T03:54:34.202611+00:00",
+ "listings": [
   {
    "language": "en-US",
    "title": "Home Helper"
   }
  ],
  "listings_list_http": 200,
- "listings_staged": [
-  {
-   "language": "en-US",
-   "title": "Home Helper"
-  }
- ],
- "matching_languages": [
-  "en-US"
- ],
- "mode": "write",
- "new_title": "Home Helper",
- "old_title": "Home Helper",
- "other_titles": [],
+ "mode": "read",
+ "new_title": "Routines Clarity",
+ "old_title": "Routines and Streaks",
  "package": "com.andrewdhorowitz.homehelper",
- "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
- "staged_listings_list_http": 200,
- "updates": [
-  {
-   "language": "en-US",
-   "listings_update_http": 200
-  }
- ],
- "verify_edits_delete_http": 204,
- "verify_edits_insert_http": 200,
- "verify_listings_list_http": 503,
- "write_edits_insert_http": 200
+ "read_edits_insert_http": 200,
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com"
 }
