@@ -1,0 +1,55 @@
+name: play-integrity-probe
+
+# Manual only. DIAGNOSTIC: probes whether playintegrity.googleapis.com
+# will decode tokens for the Bridge (com.andrewdhorowitz.bridge) from
+# the play-api service account — dummy-token call; the HTTP status
+# distinguishes API-disabled / not-permitted / live. Findings are
+# committed as JSON under play-diag/ in this repo, because job logs and
+# step summaries are not readable through the fleet PAT.
+# Key never printed.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      PLAY_API_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_API_SERVICE_ACCOUNT_JSON }}
+      DIAG_OUT_DIR: play-diag
+    steps:
+      - name: Check secret present
+        run: |
+          if [ -z "$PLAY_API_SERVICE_ACCOUNT_JSON" ]; then
+            echo "PLAY_API_SERVICE_ACCOUNT_JSON secret is not set on this repo."
+            exit 1
+          fi
+          echo "Secret present."
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install auth dependency
+        run: pip install --quiet google-auth cryptography
+      - name: Run diagnostic
+        id: diag
+        continue-on-error: true
+        run: python scripts/play_integrity_probe.py 2>&1 | tee probe-output.txt
+      - name: Commit results JSON to repo
+        if: always()
+        run: |
+          git config user.name "play-integrity-probe"
+          git config user.email "play-integrity-probe@users.noreply.github.com"
+          git add play-diag/results-integrity-probe.json || true
+          if git diff --cached --quiet; then
+            echo "No result changes to commit."
+          else
+            git commit -m "play-integrity-probe results ${{ github.run_id }}"
+            git push origin HEAD:main
+          fi
+      - name: Fail the run if the diagnostic failed
+        if: steps.diag.outcome == 'failure'
+        run: exit 1
