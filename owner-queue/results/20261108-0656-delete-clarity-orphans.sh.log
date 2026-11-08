@@ -1,0 +1,9 @@
+# owner-loop result
+# job: 20261108-0656-delete-clarity-orphans.sh
+# started: 2026-11-08 06:57:16 EST
+# finished: 2026-11-08 06:57:16 EST
+# exit code: 1
+# ---- job output ----
+== delete-clarity-orphans ==
+Sun Nov  8 06:57:16 EST 2026
+- skipped (gcloud is not installed in this Termux environment; nothing touched)
