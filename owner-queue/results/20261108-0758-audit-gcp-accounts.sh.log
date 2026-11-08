@@ -1,0 +1,48 @@
+# owner-loop result
+# job: 20261108-0758-audit-gcp-accounts.sh
+# started: 2026-11-08 07:59:05 EST
+# finished: 2026-11-08 07:59:15 EST
+# exit code: 0
+# ---- job output ----
+== audit-gcp-accounts ==
+Sun Nov  8 07:59:05 EST 2026
+-- tool inventory --
+missing: gcloud
+present: firebase -> /data/data/com.termux/files/usr/bin/firebase
+present: node -> /data/data/com.termux/files/usr/bin/node
+present: python3 -> /data/data/com.termux/files/usr/bin/python3
+-- firebase login:list --
+Logged in as fourpshot@gmail.com
+-- firebase projects:list (default account) --
+- Preparing the list of your Firebase projects
+✔ Preparing the list of your Firebase projects
+[90m┌──────────────────────[39m[90m┬────────────────────────────[39m[90m┬────────────────[39m[90m┬──────────────────────┐[39m
+[90m│[39m[32m Project Display Name [39m[90m│[39m[32m Project ID                 [39m[90m│[39m[32m Project Number [39m[90m│[39m[32m Resource Location ID [39m[90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m Clarity              [90m│[39m clarity-family             [90m│[39m 56094110439    [90m│[39m [Not specified]      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m family-routines-app  [90m│[39m family-routines-app        [90m│[39m 826159679918   [90m│[39m [Not specified]      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m homework-clarity     [90m│[39m gen-lang-client-0590645241 [90m│[39m 812192362931   [90m│[39m [Not specified]      [90m│[39m
+[90m└──────────────────────[39m[90m┴────────────────────────────[39m[90m┴────────────────[39m[90m┴──────────────────────┘[39m
+
+3 project(s) total.
+-- firebase projects:list --account=fourpshot@gmail.com --
+- Preparing the list of your Firebase projects
+✔ Preparing the list of your Firebase projects
+[90m┌──────────────────────[39m[90m┬────────────────────────────[39m[90m┬────────────────[39m[90m┬──────────────────────┐[39m
+[90m│[39m[32m Project Display Name [39m[90m│[39m[32m Project ID                 [39m[90m│[39m[32m Project Number [39m[90m│[39m[32m Resource Location ID [39m[90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m Clarity              [90m│[39m clarity-family             [90m│[39m 56094110439    [90m│[39m [Not specified]      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m family-routines-app  [90m│[39m family-routines-app        [90m│[39m 826159679918   [90m│[39m [Not specified]      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m homework-clarity     [90m│[39m gen-lang-client-0590645241 [90m│[39m 812192362931   [90m│[39m [Not specified]      [90m│[39m
+[90m└──────────────────────[39m[90m┴────────────────────────────[39m[90m┴────────────────[39m[90m┴──────────────────────┘[39m
+
+3 project(s) total.
+-- firebase projects:list --account=andrewhorowitz3@gmail.com --
+
+Error: Account andrewhorowitz3@gmail.com not found, run "firebase login:list" to see existing accounts or "firebase login:add" to add a new one
+- failed for andrewhorowitz3@gmail.com (exit 1)
+== audit complete (read-only; nothing changed) ==
