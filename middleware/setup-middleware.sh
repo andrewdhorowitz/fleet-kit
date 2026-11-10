@@ -4,6 +4,14 @@
 
 set -e
 
+# Termux fixes (Muse, 2026-11-09, after Andrew's run froze three times):
+# 1. npx asks "install wrangler?" interactively; inside this script that
+#    prompt is invisible (checks redirect output), so the run hangs forever
+#    at the login check. npm_config_yes makes npx install without asking.
+# 2. Prefer a globally installed wrangler binary when one exists.
+export npm_config_yes=true
+if command -v wrangler &> /dev/null; then WR="wrangler"; else WR="npx wrangler"; fi
+
 echo "=== Middleware Phase 0: Infrastructure Setup ==="
 echo "Checking prerequisites..."
 
@@ -19,8 +27,8 @@ fi
 
 echo "[OK] Prerequisites met."
 echo "Checking Cloudflare Wrangler login..."
-if ! npx wrangler whoami &> /dev/null; then
-    echo "You are not logged into Wrangler. Please run 'npx wrangler login' and try again."
+if ! $WR whoami &> /dev/null; then
+    echo "You are not logged into Wrangler. Please run '$WR login' and try again."
     exit 1
 fi
 echo "[OK] Wrangler authenticated."
@@ -43,9 +51,9 @@ fi
 
 # Step 2: Provision D1 Database (Idempotency requires strong consistency)
 echo "Checking D1 database..."
-if ! npx wrangler d1 info middleware-ledger &> /dev/null; then
+if ! $WR d1 info middleware-ledger &> /dev/null; then
     echo "Creating D1 database 'middleware-ledger'..."
-    D1_OUT=$(npx wrangler d1 create middleware-ledger)
+    D1_OUT=$($WR d1 create middleware-ledger)
     echo "$D1_OUT"
     
     DB_ID=$(echo "$D1_OUT" | grep "database_id" | awk -F'"' '{print $4}')
@@ -77,7 +85,7 @@ if ! npx wrangler d1 info middleware-ledger &> /dev/null; then
         expires_at DATETIME NOT NULL
     );
 EOF
-    npx wrangler d1 execute middleware-ledger --file=schema.sql --remote
+    $WR d1 execute middleware-ledger --file=schema.sql --remote
 else
     echo "[OK] D1 database 'middleware-ledger' already exists."
 fi
@@ -97,17 +105,17 @@ echo ""
 read -p "Set MUSE_BEARER_TOKEN now? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    npx wrangler secret put MUSE_BEARER_TOKEN || echo "[skip] MUSE_BEARER_TOKEN not set."
+    $WR secret put MUSE_BEARER_TOKEN || echo "[skip] MUSE_BEARER_TOKEN not set."
 fi
 read -p "Set GCP_WORKSPACE_SA_KEY now? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    npx wrangler secret put GCP_WORKSPACE_SA_KEY || echo "[skip] GCP_WORKSPACE_SA_KEY not set."
+    $WR secret put GCP_WORKSPACE_SA_KEY || echo "[skip] GCP_WORKSPACE_SA_KEY not set."
 fi
 read -p "Set WORKSPACE_ADMIN_EMAIL now? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    npx wrangler secret put WORKSPACE_ADMIN_EMAIL || echo "[skip] WORKSPACE_ADMIN_EMAIL not set."
+    $WR secret put WORKSPACE_ADMIN_EMAIL || echo "[skip] WORKSPACE_ADMIN_EMAIL not set."
 fi
 
 # Step 4: Deploy
@@ -116,7 +124,7 @@ read -p "Infrastructure ready. Proceed with deployment to Cloudflare edge? (y/n)
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Deploying via Wrangler..."
-    npx wrangler deploy
+    $WR deploy
     echo "=== DEPLOYMENT COMPLETE ==="
 else
     echo "Deployment aborted by owner. Run script again when ready."
