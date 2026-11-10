@@ -6,7 +6,7 @@
  "edits_delete_http": 204,
  "edits_insert_http": 200,
  "errors": [],
- "generated_at": "2026-11-10T15:42:52.092242+00:00",
+ "generated_at": "2026-11-10T21:07:06.346683+00:00",
  "package": "com.andrewdhorowitz.familyboard",
  "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
  "testers": {
@@ -46,11 +46,11 @@
   {
    "releases": [
     {
-     "name": "2.2.6",
+     "name": "2.2.8",
      "status": "completed",
      "userFraction": null,
      "versionCodes": [
-      "20"
+      "22"
      ]
     }
    ],
