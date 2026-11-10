@@ -26,6 +26,21 @@ if ! command -v npx &> /dev/null; then
 fi
 
 echo "[OK] Prerequisites met."
+
+# Token loading (Muse, 2026-11-09, at Andrew's direction): when cf.out is
+# present, read the Cloudflare API token from it — the value is never
+# printed. Search order: this folder, then the Termux home directory.
+# cf.out is git-ignored; it must never be committed.
+if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+    for f in "./cf.out" "$HOME/cf.out"; do
+        if [ -f "$f" ]; then
+            CLOUDFLARE_API_TOKEN=$(head -n 1 "$f" | tr -d ' \t\r\n')
+            export CLOUDFLARE_API_TOKEN
+            echo "[OK] Loaded Cloudflare token from $f (${#CLOUDFLARE_API_TOKEN} chars)."
+            break
+        fi
+    done
+fi
 echo "Checking Cloudflare Wrangler login..."
 if ! $WR whoami &> /dev/null; then
     echo "Wrangler is not authenticated. On Termux, OAuth login does not work:"; echo "set CLOUDFLARE_API_TOKEN in this session (read -s line) and rerun."
