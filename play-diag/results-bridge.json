@@ -6,7 +6,7 @@
  "edits_delete_http": 204,
  "edits_insert_http": 200,
  "errors": [],
- "generated_at": "2026-11-08T05:38:11.497863+00:00",
+ "generated_at": "2026-11-10T03:49:58.128148+00:00",
  "package": "com.andrewdhorowitz.bridge",
  "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
  "testers": {
@@ -46,11 +46,11 @@
   {
    "releases": [
     {
-     "name": "0.8.1",
+     "name": "0.8.2",
      "status": "completed",
      "userFraction": null,
      "versionCodes": [
-      "13"
+      "14"
      ]
     }
    ],
