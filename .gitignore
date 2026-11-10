@@ -1,2 +1,3 @@
 # Owner-only local secret file (phone clone only) — never commit
 cf-token-admin.txt
+cf.out
