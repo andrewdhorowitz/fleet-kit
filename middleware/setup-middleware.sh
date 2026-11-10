@@ -32,7 +32,8 @@ echo "[OK] Prerequisites met."
 # printed. Search order: this folder, then the Termux home directory.
 # cf.out is git-ignored; it must never be committed.
 if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-    for f in "./cf.out" "$HOME/cf.out"; do
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    for f in "$SCRIPT_DIR/cf.out" "$HOME/cf.out"; do
         if [ -f "$f" ]; then
             CLOUDFLARE_API_TOKEN=$(head -n 1 "$f" | tr -d ' \t\r\n')
             export CLOUDFLARE_API_TOKEN
