@@ -28,7 +28,7 @@ fi
 echo "[OK] Prerequisites met."
 echo "Checking Cloudflare Wrangler login..."
 if ! $WR whoami &> /dev/null; then
-    echo "You are not logged into Wrangler. Please run '$WR login' and try again."
+    echo "Wrangler is not authenticated. On Termux, OAuth login does not work:"; echo "set CLOUDFLARE_API_TOKEN in this session (read -s line) and rerun."
     exit 1
 fi
 echo "[OK] Wrangler authenticated."
