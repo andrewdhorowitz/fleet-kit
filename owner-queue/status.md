@@ -1,7 +1,7 @@
 # owner-loop status
-flag: STOPPED
-updated: 2026-11-08 11:01:34 EST
-loop: started 2026-11-08 06:57:14 EST · round 225 · restarts 0
-last job: 20261108-0822-verify-demotions.sh — exit 0 at 2026-11-08 08:22:36 EST
-pending: 0 job(s) · running: none
-last push: ok 2026-11-08 11:00:41 EST
+flag: ALIVE
+updated: 2026-11-11 14:39:12 EST
+loop: started 2026-11-11 14:39:12 EST · round 0 · restarts 0
+last job: none yet
+pending: 1 job(s) · running: none
+last push: never
