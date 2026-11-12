@@ -1,9 +1,18 @@
 // file: src/index.js
 // path: ./src/index.js
+//
+// groups-update-2026-11-12: groups.* actions resolve against the
+// server-side app-release group registry (MW_GROUP_REGISTRY) —
+// four-group model, domain-group targets, release order, and the
+// Nov 12, 2026 confirmation rules (simple one-click for ordinary
+// person adds at the caller layer; OWNERS GATE preview stop below).
+// Prepared by Muse; deployed only by the owner-run update script
+// in middleware/groups-update-2026-11-12/. The HTTP-500 error-builder
+// defect is deliberately untouched (separate builder-exchange item).
 
 const ACTION_CATALOG = {
   // --- WAVE 1A ACTIONS ---
-  "groups.members.add": { class: "mutation", async: false },
+  "groups.members.add": { class: "mutation", async: false }, // Owners-group targets additionally stop at the OWNERS GATE in the handler (groups-update-2026-11-12)
   "groups.members.remove": { class: "mutation", async: false }, // F1: implemented below
   "groups.get": { class: "read", async: false },
   "play.apps.create": { class: "consequential", async: true },
@@ -125,56 +134,130 @@ async function routeAction(action, mode, params, context, approval, env, request
   // Google Groups Logic (§1.4)
   if (action.startsWith("groups.")) {
     if (!env.WORKSPACE_ADMIN_EMAIL) throw new Error("Server configuration error: WORKSPACE_ADMIN_EMAIL secret is missing.");
-    
+
+    // --- groups-update-2026-11-12: registry resolution + gates ---
+    // The four app-release groups live in a server-side registry
+    // (MW_GROUP_REGISTRY secret, set by the owner-run update script).
+    // params.groupKey may be a registry key ("owners"), the consumer
+    // @googlegroups.com address, or the domain address; it always
+    // resolves to the group's DOMAIN address for the API call.
+    // Consumer @googlegroups.com addresses are recorded as the
+    // current/manual state only — Admin SDK + DWD cannot manage
+    // consumer groups (Nov 11, 2026 live test), so the Worker never
+    // calls them directly.
+    const registry = loadGroupRegistry(env);
+    const group = resolveGroup(registry, params.groupKey);
+    if (!group) throw new Error(`validation: unknown group '${params.groupKey}' — not in the app-release group registry`);
+
+    if (!group.domain_address) {
+      // No domain group exists for this audience in the Workspace
+      // plan (Family — tester-groups.json, Nov 12, 2026 note):
+      // membership stays a manual Groups-UI step.
+      return buildResponse(request_id, auditId, "needs_owner", action, {
+        group: group.key,
+        state: "manual_only",
+        owner_step: `Group '${group.name}' has no domain group in the Workspace plan; manage its membership by hand in the Groups UI. The middleware does not call its consumer address (${group.consumer_address}).`
+      }, null, startTime);
+    }
+
+    // OWNERS GATE (Andrew, Nov 12, 2026 — invitation runbook rule (d)):
+    // ANY membership change to the Owners group stops here with an
+    // exact preview, through the same §3.7 preview machinery as a
+    // consequential action. The preview states the exact proposed
+    // change and that Owners carries tester access to every fleet
+    // app; the simple one-click confirmation does NOT satisfy this
+    // gate. Ordinary groups stay mutation class — their confirmation
+    // is Andrew's one-click confirmation at action time, enforced at
+    // the caller layer by his standing click rule (recorded per group
+    // in the registry's `confirmation` field).
+    // Known protocol state, unchanged by this update: previews are
+    // stored but this build has no approval-redemption path for ANY
+    // action, so an Owners change stops at needs_approval here; how
+    // an approved Owners change executes is Andrew's open decision
+    // (see the build report, middleware-groups-update-2026-11-12.md).
+    if (group.key === "owners" && (action === "groups.members.add" || action === "groups.members.remove") && mode === "execute") {
+      if (!params.email) throw new Error("validation: Email required");
+      const previewId = `prv-${crypto.randomUUID()}`;
+      const previewData = {
+        change: `OWNERS GATE: proposed ${action} — member ${params.email} — on ${group.name} (${group.domain_address}). Owners carries tester access to every fleet app. This change proceeds only on Andrew's explicit, unambiguous confirmation; if there is any doubt about what was confirmed, the change does not happen.`,
+        params
+      };
+      await env.DB.prepare("INSERT INTO previews (preview_id, action, payload_json, expires_at) VALUES (?, ?, ?, datetime('now', '+1 day'))")
+        .bind(previewId, action, JSON.stringify(previewData)).run();
+      return buildResponse(request_id, auditId, "needs_approval", action, { preview: previewData, preview_id: previewId }, null, startTime);
+    }
+
+    const groupKey = group.domain_address;
+
     // F2: DWD Implementation with `sub` claim impersonating the workspace admin and strict scoping
     const scope = "https://www.googleapis.com/auth/admin.directory.group.member";
     const token = await getGoogleAccessToken(env.GCP_WORKSPACE_SA_KEY, scope, env.WORKSPACE_ADMIN_EMAIL);
     if (!token) throw new Error("Failed to generate Google Workspace DWD token");
 
     if (action === "groups.get") {
-      const res = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${params.groupKey}/members`, {
+      const res = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${groupKey}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error(`Google API returned ${res.status}`);
       const data = await res.json();
-      return buildResponse(request_id, auditId, "completed", action, {}, data, startTime);
+      return buildResponse(request_id, auditId, "completed", action, { group: group.key }, data, startTime);
     }
-    
+
     if (action === "groups.members.add") {
       if (!params.email) throw new Error("validation: Email required");
-      const res = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${params.groupKey}/members`, {
+      const res = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${groupKey}/members`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ email: params.email, role: "MEMBER" })
       });
       if (!res.ok) throw new Error(`Google API returned ${res.status}`);
-      
-      const evidenceRes = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${params.groupKey}/members`, {
+
+      const evidenceRes = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${groupKey}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const evidence = await evidenceRes.json();
-      return buildResponse(request_id, auditId, "completed", action, { added: params.email }, evidence, startTime);
+      return buildResponse(request_id, auditId, "completed", action, { added: params.email, group: group.key }, evidence, startTime);
     }
 
     // F1: groups.members.remove Implementation (Silent correction shape + read-back evidence)
     if (action === "groups.members.remove") {
       if (!params.email) throw new Error("validation: Email required");
-      const res = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${params.groupKey}/members/${params.email}`, {
+      const res = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${groupKey}/members/${params.email}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
       // Treat 404 (already gone) as success for silent correction
       if (!res.ok && res.status !== 404) throw new Error(`Google API returned ${res.status}`);
-      
-      const evidenceRes = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${params.groupKey}/members`, {
+
+      const evidenceRes = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups/${groupKey}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const evidence = await evidenceRes.json();
-      return buildResponse(request_id, auditId, "completed", action, { removed: params.email }, evidence, startTime);
+      return buildResponse(request_id, auditId, "completed", action, { removed: params.email, group: group.key }, evidence, startTime);
     }
   }
 
   throw new Error(`Action ${action} implemented but handler missing.`);
+}
+
+// App-release group registry (groups-update-2026-11-12). The registry
+// JSON rides in the MW_GROUP_REGISTRY Worker secret, set by the
+// owner-run update script — it is configuration (group names and
+// addresses), carried in a secret only because that is the fleet's
+// established owner-run config channel for this Worker.
+function loadGroupRegistry(env) {
+  if (!env.MW_GROUP_REGISTRY) throw new Error("Server configuration error: MW_GROUP_REGISTRY secret is missing — run the groups update (middleware/groups-update-2026-11-12).");
+  let registry;
+  try { registry = JSON.parse(env.MW_GROUP_REGISTRY); } catch (e) {
+    throw new Error("Server configuration error: MW_GROUP_REGISTRY is not valid JSON.");
+  }
+  if (!registry || !Array.isArray(registry.groups)) throw new Error("Server configuration error: MW_GROUP_REGISTRY has no groups list.");
+  return registry;
+}
+
+function resolveGroup(registry, groupKey) {
+  if (!groupKey) throw new Error("validation: groupKey required");
+  return registry.groups.find(g => g.key === groupKey || g.consumer_address === groupKey || g.domain_address === groupKey) || null;
 }
 
 function buildResponse(request_id, audit_id, status, action, result, evidence, startTime) {
