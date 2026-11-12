@@ -206,8 +206,8 @@ except Exception:
 [ -n "$ACCT_IDS" ] || stop cf-account "Cloudflare account list came back empty/unreadable — token may lack account read; nothing was created"
 MATCHES=0
 for aid in $ACCT_IDS; do
-  W="$(curl -sS "$CF_API/accounts/$aid/workers/scripts/$WORKER_NAME" -H "Authorization: Bearer $CF_TOKEN" 2>/dev/null)"
-  if printf '%s' "$W" | grep -q '"success": *true'; then
+  W_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "$CF_API/accounts/$aid/workers/scripts/$WORKER_NAME" -H "Authorization: Bearer $CF_TOKEN" 2>/dev/null)"
+  if [ "$W_CODE" = "200" ]; then
     CF_ACCOUNT_ID="$aid"; MATCHES=$((MATCHES+1))
   fi
 done
