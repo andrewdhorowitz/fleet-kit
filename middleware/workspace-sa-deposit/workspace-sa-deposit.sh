@@ -261,6 +261,27 @@ if [ -s "$PROJECT_ID_FILE" ]; then
 fi
 say "project: $PROJECT"
 api GET "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJECT"; api_read
+if [ "$API_STATUS" = "403" ]; then
+  # Google answers 403 (not 404) for a project ID that does not exist yet when
+  # the caller has no access to it — existence is deliberately hidden. Disam-
+  # biguate with the list of projects this account CAN see: listed means the
+  # project exists and is ours; unlisted means treat it as absent and let the
+  # single guarded create below decide (an ID taken by someone else fails the
+  # create loudly, which stops the run — no second ID is ever tried).
+  api GET "https://cloudresourcemanager.googleapis.com/v1/projects?pageSize=200"; api_read
+  if [ "$API_STATUS" = "200" ] && printf '%s' "$RESP" | PROJECT="$PROJECT" python3 -c '
+import json, os, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+sys.exit(0 if any(p.get("projectId") == os.environ["PROJECT"] for p in data.get("projects", [])) else 1)
+'; then
+    API_STATUS=200
+  else
+    API_STATUS=404
+  fi
+fi
 if [ "$API_STATUS" = "200" ]; then
   step project "✓ already (project $PROJECT exists and is visible to the signed-in account)"
   mark PROJECT_OK
