@@ -39,7 +39,7 @@ export PATH="$HOME/.local/bin:$HOME/bin:/data/data/com.termux/files/usr/bin:$PAT
 
 WORKER_NAME="andrew-middleware"
 PROJECT_ID_DEFAULT="andrew-mw-workspace"
-PROJECT_NAME="Andrew Middleware - Workspace SA"
+PROJECT_NAME="Andrew Middleware Workspace"
 PROJECT_ID_FILE="$HOME/workspace-sa-project-id.txt"
 SA_ID="mw-groups"
 SA_DISPLAY="Middleware Groups (Workspace service account)"
