@@ -75,7 +75,7 @@ export default {
     // code at authorize time and by Worker-issued tokens after,
     // never by the Muse bearer token — so they route BEFORE the
     // bearer check below.
-    if (url.pathname === "/home/auth" || url.pathname === "/home/token" || url.pathname === "/home/fulfill") {
+    if (url.pathname === "/home/auth" || url.pathname === "/home/auth/callback" || url.pathname === "/home/token" || url.pathname === "/home/fulfill") {
       return handleHome(request, env, ctx, url.pathname);
     }
 
@@ -355,9 +355,14 @@ function errorHttpResponse(kind, retryable, message, provider, startTime, audit_
 // named-automations-spec-2026-11-13.md)
 //
 // The middleware itself is the linked Smart Home service (§1):
-//   GET/POST /home/auth    — account-linking page, gated by the
-//                            link code (HOME_LINK_CODE secret; the
-//                            value never appears in this repo).
+//   GET/POST /home/auth    — account-linking page. Primary gate
+//                            (spec §11, Nov 13): Google sign-in —
+//                            only the HOME_ALLOWED_EMAIL account
+//                            passes; any other signed-in account
+//                            gets a dead-end page. Fallback gate:
+//                            the link code (HOME_LINK_CODE secret;
+//                            the value never appears in this repo).
+//   GET      /home/auth/callback — Google sign-in return leg.
 //   POST     /home/token   — authorization_code + refresh_token
 //                            grants; tokens stored hash-only in D1.
 //   POST     /home/fulfill — SYNC (rendered dynamically from the
@@ -386,10 +391,21 @@ const HOME_ACCESS_TTL_MS = 3600 * 1000;
 const HOME_PULSE_HOLD_MS = 1000; // spec §4 (200 ms risks dropped/coalesced edges)
 const HOME_DEFAULT_COOLDOWN_SECONDS = 10; // spec §2
 const HOME_REDIRECT_PREFIX = "https://oauth-redirect.googleusercontent.com/";
-// Placeholder labels only — the service's exact display name is
-// Andrew's to settle in the Actions console (spec §9b); device
-// names themselves come from the registry's display_name values.
-const HOME_SERVICE_LABEL = "your middleware service";
+// Display name settled by Andrew (spec §9b, Nov 13): the service
+// is "Andrew Google Bridge"; device names come from the registry's
+// display_name values.
+const HOME_SERVICE_LABEL = "Andrew Google Bridge";
+// Sign-in gate (spec §11; signin-update-2026-11-13): env key
+// NAMES only — the client secret
+// value is deposited by the owner-run update script and never
+// appears in this repo. The gate is active only when all three
+// are set; otherwise /home/auth serves the link-code form.
+const HOME_SIGNIN_CLIENT_ID_KEY = "HOME_SIGNIN_CLIENT_ID";
+const HOME_SIGNIN_CLIENT_SECRET_KEY = "HOME_SIGNIN_CLIENT_SECRET";
+const HOME_ALLOWED_EMAIL_KEY = "HOME_ALLOWED_EMAIL";
+const GOOGLE_IDENTITY_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_IDENTITY_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo";
 const HOME_DEVICE_MANUFACTURER = "middleware";
 
 const HOME_SCHEMA = [
@@ -488,6 +504,23 @@ async function setAutomationState(env, slug, knownState) {
     .bind(knownState, slug).run();
 }
 
+// Home Graph error detail: status plus Google's own error
+// status/message (never any credential material — Google error
+// bodies describe the request, not the caller). Added Nov 13
+// while diagnosing a bare homegraph_http_400 on requestSync:
+// the status alone could not distinguish a wrong-project key
+// from an unregistered agent user.
+async function homegraphErrorDetail(res) {
+  let suffix = "";
+  try {
+    const j = await res.json();
+    const e = (j && j.error) || {};
+    const parts = [e.status, e.message].filter((x) => typeof x === "string" && x);
+    if (parts.length) suffix = `: ${parts.join(" — ").slice(0, 200)}`;
+  } catch (_) { /* non-JSON error body: the status alone stands */ }
+  return `homegraph_http_${res.status}${suffix}`;
+}
+
 // Automatic requestSync after any registry change (spec §2).
 // Best-effort by design: the registry write is already durable;
 // a sync failure is reported in the action result, never thrown.
@@ -503,7 +536,7 @@ async function requestHomeSync(env) {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ requestId: crypto.randomUUID(), agentUserId: HOME_AGENT_USER_ID, async: false }),
     });
-    if (!res.ok) return { request_sync: "failed", detail: `homegraph_http_${res.status}` };
+    if (!res.ok) return { request_sync: "failed", detail: await homegraphErrorDetail(res) };
     return { request_sync: "requested" };
   } catch (_) {
     return { request_sync: "failed", detail: "fetch_failed" };
@@ -552,6 +585,103 @@ async function resolveHomeLinkCode(env, presented) {
   if (typeof presented !== "string" || !presented || !env[HOME_LINK_CODE_SECRET]) return null;
   const [a, b] = await Promise.all([sha256Hex(presented), sha256Hex(env[HOME_LINK_CODE_SECRET])]);
   return a === b ? HOME_AGENT_USER_ID : null;
+}
+
+// --- Sign-in gate (spec §11) -------------------------------------------
+// Active only when client id + client secret + allowed email are
+// ALL configured; the signed-in email is compared and never stored.
+
+function homeSigninConfigured(env) {
+  return !!(env[HOME_SIGNIN_CLIENT_ID_KEY] && env[HOME_SIGNIN_CLIENT_SECRET_KEY] && env[HOME_ALLOWED_EMAIL_KEY]);
+}
+
+// Issues the Smart Home authorization code and returns the 302 back
+// to Google — shared by the link-code POST and the sign-in callback.
+async function homeIssueCodeRedirect(env, fields) {
+  const code = await issueHomeToken(env, "code", HOME_CODE_TTL_MS, { redirect_uri: fields.redirect_uri });
+  const sep = fields.redirect_uri.includes("?") ? "&" : "?";
+  let location = `${fields.redirect_uri}${sep}code=${encodeURIComponent(code)}`;
+  if (fields.state) location += `&state=${encodeURIComponent(fields.state)}`;
+  return new Response(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
+}
+
+function homeDeadEndPage() {
+  // The exact dead end Andrew specified (same wording as the
+  // Bridge and Home Helper gates): nothing else, no controls.
+  return homeHtmlPage(200, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Andrew Google Bridge</title></head>
+<body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
+<p>You can't use this. Bye.</p>
+</body></html>`);
+}
+
+function homeFlowErrorPage(status, text) {
+  return homeHtmlPage(status, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Andrew Google Bridge</title></head>
+<body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
+<p>${homeEscapeHtml(text)}</p>
+</body></html>`);
+}
+
+async function handleHomeSigninCallback(request, env, url) {
+  if (request.method !== "GET") {
+    return homeJson(405, { ok: false, error: "method_not_allowed" }, { Allow: "GET" });
+  }
+  if (!homeSigninConfigured(env)) {
+    return homeFlowErrorPage(403, "Sign-in linking is not enabled on this server. Nothing was linked.");
+  }
+  const stateRaw = url.searchParams.get("state") || "";
+  const code = url.searchParams.get("code") || "";
+  const pending = stateRaw ? await findHomeToken(env, "signin", stateRaw) : null;
+  if (url.searchParams.get("error") || !code || !pending) {
+    if (pending) await deleteHomeToken(env, stateRaw);
+    return homeFlowErrorPage(200, "Google sign-in did not finish, so nothing was linked. Start linking again from Google Home.");
+  }
+  let fields = null;
+  try { fields = JSON.parse(pending.redirect_uri || ""); } catch (_) { fields = null; }
+  // Single-use: the pending record is burned before the exchange.
+  await deleteHomeToken(env, stateRaw);
+  if (!fields || !String(fields.redirect_uri || "").startsWith(HOME_REDIRECT_PREFIX)) {
+    return homeFlowErrorPage(400, "That sign-in return was not expected. Nothing was linked.");
+  }
+  const callbackUri = `${url.origin}/home/auth/callback`;
+  let idToken = null;
+  try {
+    const res = await fetch(GOOGLE_IDENTITY_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: env[HOME_SIGNIN_CLIENT_ID_KEY],
+        client_secret: env[HOME_SIGNIN_CLIENT_SECRET_KEY],
+        redirect_uri: callbackUri,
+        grant_type: "authorization_code",
+      }),
+    });
+    if (res.ok) {
+      const j = await res.json();
+      if (j && typeof j.id_token === "string") idToken = j.id_token;
+    }
+  } catch (_) { /* handled below as a failed sign-in */ }
+  if (!idToken) {
+    return homeFlowErrorPage(200, "Google did not complete the sign-in, so nothing was linked. Start linking again from Google Home.");
+  }
+  let info = null;
+  try {
+    const res = await fetch(`${GOOGLE_TOKENINFO_URL}?id_token=${encodeURIComponent(idToken)}`);
+    if (res.ok) info = await res.json();
+  } catch (_) { /* handled below */ }
+  const audOk = !!info && info.aud === env[HOME_SIGNIN_CLIENT_ID_KEY] &&
+    (info.iss === "accounts.google.com" || info.iss === "https://accounts.google.com") &&
+    typeof info.email === "string";
+  if (!audOk) {
+    return homeFlowErrorPage(200, "That sign-in could not be verified, so nothing was linked. Start linking again from Google Home.");
+  }
+  const verified = info.email_verified === "true" || info.email_verified === true;
+  const emailOk = verified && info.email.toLowerCase() === String(env[HOME_ALLOWED_EMAIL_KEY]).toLowerCase();
+  if (!emailOk) return homeDeadEndPage();
+  console.log(`home link issued via google sign-in agent=${HOME_AGENT_USER_ID}`);
+  return homeIssueCodeRedirect(env, fields);
 }
 
 // --- Home Graph client --------------------------------------------------
@@ -615,7 +745,7 @@ async function reportHomeState(env, deviceId, on) {
   } catch (_) {
     return { ok: false, detail: "homegraph_fetch_failed", httpStatus: 504 };
   }
-  if (!res.ok) return { ok: false, detail: `homegraph_http_${res.status}`, httpStatus: 502 };
+  if (!res.ok) return { ok: false, detail: await homegraphErrorDetail(res), httpStatus: 502 };
   return { ok: true };
 }
 
@@ -852,9 +982,9 @@ function homeAuthPage(fields, errorLine) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Link middleware service</title></head>
+<title>Link ${HOME_SERVICE_LABEL}</title></head>
 <body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
-<h1 style="font-size: 1.3em;">Link middleware service</h1>
+<h1 style="font-size: 1.3em;">Link ${HOME_SERVICE_LABEL}</h1>
 <p>This links your Google Home to ${HOME_SERVICE_LABEL} — virtual
 on/off switches, one per named automation you have enabled, that
 your own Google Home automations can use as starters. Nothing else
@@ -876,8 +1006,12 @@ async function handleHome(request, env, ctx, path) {
   try {
     await ensureHomeSchema(env);
 
+    if (path === "/home/auth/callback") {
+      return await handleHomeSigninCallback(request, env, url);
+    }
+
     if (path === "/home/auth") {
-      if (!env[HOME_LINK_CODE_SECRET]) {
+      if (!env[HOME_LINK_CODE_SECRET] && !homeSigninConfigured(env)) {
         return homeHtmlPage(403, `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Linking disabled</title></head>
 <body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
@@ -895,6 +1029,24 @@ this server yet. Nothing was linked.</p>
         if (!fields.redirect_uri.startsWith(HOME_REDIRECT_PREFIX)) {
           return homeHtmlPage(400,
             "<p>Missing or unexpected redirect address — linking can only return to Google. Nothing was linked.</p>");
+        }
+        // Sign-in gate (spec §11): when configured, linking starts
+        // with Google sign-in; ?method=code is the explicit fallback.
+        if (homeSigninConfigured(env) && url.searchParams.get("method") !== "code") {
+          const state = await issueHomeToken(env, "signin", HOME_CODE_TTL_MS, {
+            redirect_uri: JSON.stringify(fields),
+          });
+          const authUrl = new URL(GOOGLE_IDENTITY_AUTH_URL);
+          authUrl.searchParams.set("client_id", env[HOME_SIGNIN_CLIENT_ID_KEY]);
+          authUrl.searchParams.set("redirect_uri", `${url.origin}/home/auth/callback`);
+          authUrl.searchParams.set("response_type", "code");
+          authUrl.searchParams.set("scope", "openid email");
+          authUrl.searchParams.set("state", state);
+          authUrl.searchParams.set("prompt", "select_account");
+          return new Response(null, {
+            status: 302,
+            headers: { Location: authUrl.toString(), "Cache-Control": "no-store" },
+          });
         }
         return homeHtmlPage(200, homeAuthPage(fields, null));
       }
@@ -915,12 +1067,8 @@ this server yet. Nothing was linked.</p>
       if (!agentUserId) {
         return homeHtmlPage(200, homeAuthPage(fields, "That link code did not match. Nothing was linked."));
       }
-      const code = await issueHomeToken(env, "code", HOME_CODE_TTL_MS, { redirect_uri: fields.redirect_uri });
-      const sep = fields.redirect_uri.includes("?") ? "&" : "?";
-      let location = `${fields.redirect_uri}${sep}code=${encodeURIComponent(code)}`;
-      if (fields.state) location += `&state=${encodeURIComponent(fields.state)}`;
       console.log(`home link code issued agent=${agentUserId}`);
-      return new Response(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
+      return homeIssueCodeRedirect(env, fields);
     }
 
     if (path === "/home/token") {
