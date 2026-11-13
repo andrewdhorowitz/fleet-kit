@@ -10,12 +10,18 @@ your consoles to your Termux session to the Worker secret store —
 never through chat, never to Muse. The script verifies by reading
 back secret **names only**.
 
+**Partial runs are fine:** the three exports are independently
+optional. Export whichever values you have in hand — the script
+deposits those, names the ones it skipped, and a later re-run with
+the remaining exports set completes the set. It aborts only if
+none of the three is exported.
+
 **Who runs what:** YOU steps are Andrew's (consoles + one Termux
 run). ME steps are Muse's, after the run.
 
 ---
 
-## YOU-1 — Have the three values ready (one time)
+## YOU-1 — Have the values ready (any subset is fine)
 
 All three live in the Google Cloud project
 **gen-lang-client-0590645241**:
@@ -46,9 +52,20 @@ export HC_GEMINI_API_KEY=<API key from YOU-1>
 node homework-clarity/secrets-update-2026-11-13/update-homework-clarity-secrets.mjs
 ```
 
-Success ends with `=== SECRETS SET AND VERIFIED ===`. A failure
-prints exactly which leg failed and is safe to re-run. If an export
-is missing, the script stops before any API call and names it.
+Export only what you have — any one, two, or all three lines.
+Example, client ID only:
+
+```
+cd ~/work/fleet-kit && git pull
+export HC_GOOGLE_CLIENT_ID=<client ID from YOU-1>
+node homework-clarity/secrets-update-2026-11-13/update-homework-clarity-secrets.mjs
+```
+
+A full run ends with `=== SECRETS SET AND VERIFIED ===`; a
+partial run ends with `=== PARTIAL RUN COMPLETE ===` and names
+what's still missing. A failure prints exactly which leg failed
+and is safe to re-run. If none of the three exports is set, the
+script stops before any API call and says so.
 
 ## YOU-3 — Two console follow-ups (the script also prints these)
 
@@ -66,7 +83,8 @@ is missing, the script stops before any API call and names it.
 ## ME — Muse's steps after your run
 
 - Re-list the Worker's secret names from the deploy tooling and
-  confirm all three are present (names only).
+  confirm the ones set in your run are present (names only), and
+  note which of the three remain for a later run.
 - Walk the consent sitting with you: app → sign in as fourpshot →
   Parent view → **Connect calendar** → approve the calendar.readonly
   consent → pickers: **Alexis → her calendar, Bailey → hers** — then

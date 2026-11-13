@@ -8,17 +8,24 @@
 // Gemini API key. The live Worker currently has ZERO secrets, so
 // Connect lands on the honest "oauth-not-configured" state and
 // /extract returns the labeled sample fallback. This script
-// deposits the three secrets. Homework Clarity setup is OWNER-RUN
+// deposits the secrets — all three in one run, or any subset:
+// each export is independently optional, so a partial run now and
+// a finishing run later is a supported path. Homework Clarity
+// setup is OWNER-RUN
 // by the same standing rule as middleware maintenance: Andrew runs
 // this once in Termux; it speaks the Cloudflare API directly
 // (wrangler does not run in his Termux).
 //
 // What it does, in order:
-//   1. Checks the three session exports are present and non-empty
-//      BEFORE any API call; aborts cleanly otherwise.
+//   1. Reads the three session exports. Each is independently
+//      OPTIONAL: whichever are exported (non-empty) get deposited
+//      this run; the rest are skipped and named. Aborts cleanly,
+//      before any API call, only if NONE of the three is set.
+//      Partial runs are fine — re-running later with the remaining
+//      exports set completes the set.
 //   2. Verifies the Cloudflare token and confirms it can see the
 //      fleet account (pinned id below).
-//   3. Deposits each value as a Worker secret on the
+//   3. Deposits each exported value as a Worker secret on the
 //      homework-clarity script:
 //        HC_GOOGLE_CLIENT_ID     -> GOOGLE_CLIENT_ID
 //        HC_GOOGLE_CLIENT_SECRET -> GOOGLE_CLIENT_SECRET
@@ -26,7 +33,9 @@
 //      (values entered on-device by the owner, never printed,
 //      never carried in this repo).
 //   4. Read-back verification: lists the Worker's secret NAMES and
-//      asserts all three are present (names only, never values).
+//      asserts the ones set in this run are present (names only,
+//      never values); also reports which of the three are still
+//      missing overall.
 //   5. Prints the two remaining manual console steps (OAuth
 //      redirect URI + Firestore rules republish).
 //
@@ -59,20 +68,26 @@ const ok = (m) => console.log(`✓ ${m}`);
 const fail = (m) => { failed = true; console.log(`✗ ${m}`); };
 
 // --- 0. session exports first (before ANY api call) ---------------------
+// Each export is independently optional: deposit whichever are set,
+// skip (and name) the rest, abort only if none is set.
 const values = {};
-const missing = [];
+const toSet = [];
+const skipped = [];
 for (const [envName, secretName] of SECRETS) {
   const v = (process.env[envName] || "").trim();
-  if (v) values[secretName] = v;
-  else missing.push(envName);
+  if (v) { values[secretName] = v; toSet.push([envName, secretName]); }
+  else skipped.push(envName);
 }
-if (missing.length) {
-  console.error("Missing session exports — nothing was sent anywhere. Export all three, then re-run:");
-  for (const envName of missing) console.error(`  export ${envName}=<value>`);
+if (!toSet.length) {
+  console.error("No session exports set — nothing was sent anywhere. Export at least one of the three, then re-run:");
+  for (const [envName] of SECRETS) console.error(`  export ${envName}=<value>`);
   console.error("Values come from your own consoles (see this package's README, step YOU-1) and stay on this device.");
   process.exit(1);
 }
-ok("All three session exports present (values not printed).");
+ok(`Exports present this run: ${toSet.map(([envName]) => envName).join(", ")} (values not printed).`);
+if (skipped.length) {
+  console.log(`Skipping (not exported this run): ${skipped.join(", ")} — re-run later with those exports set to complete the set.`);
+}
 
 // --- token ---------------------------------------------------------------
 let token = (process.env.CLOUDFLARE_API_TOKEN || "").trim();
@@ -111,8 +126,8 @@ if (!account) {
 }
 ok(`Account confirmed: ${account.name} (${account.id})`);
 
-// --- 2. deposit the three secrets -----------------------------------------
-for (const [, secretName] of SECRETS) {
+// --- 2. deposit the exported secrets --------------------------------------
+for (const [, secretName] of toSet) {
   await cf(`/accounts/${ACCOUNT_ID}/workers/scripts/${WORKER_NAME}/secrets`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -122,12 +137,17 @@ for (const [, secretName] of SECRETS) {
 }
 
 // --- 3. read-back verification (names only) ---------------------------------
+let stillMissing = SECRETS.map(([, secretName]) => secretName);
 try {
   const secrets = await cf(`/accounts/${ACCOUNT_ID}/workers/scripts/${WORKER_NAME}/secrets`);
   const names = secrets.map((s) => s.name);
-  for (const [, secretName] of SECRETS) {
+  for (const [, secretName] of toSet) {
     if (names.includes(secretName)) ok(`Read-back: secret ${secretName} present (name only).`);
     else fail(`Read-back: secret ${secretName} is NOT present — the deposit did not land; tell Muse.`);
+  }
+  stillMissing = SECRETS.map(([, secretName]) => secretName).filter((n) => !names.includes(n));
+  if (stillMissing.length) {
+    console.log(`Still missing on ${WORKER_NAME} (not set in this or any earlier run): ${stillMissing.join(", ")} — a later run with the matching exports set completes the set.`);
   }
 } catch (e) {
   fail(`Read-back of the secret list failed: ${e.message}`);
@@ -138,7 +158,11 @@ if (failed) {
   console.log("=== SECRETS UPDATE INCOMPLETE — see ✗ lines above; nothing was rolled back, re-running is safe. ===");
   process.exit(1);
 }
-console.log("=== SECRETS SET AND VERIFIED (all three names present on homework-clarity) ===");
+if (!stillMissing.length) {
+  console.log("=== SECRETS SET AND VERIFIED (all three names present on homework-clarity) ===");
+} else {
+  console.log(`=== PARTIAL RUN COMPLETE — ${toSet.map(([, s]) => s).join(", ")} deposited and verified; still missing: ${stillMissing.join(", ")} ===`);
+}
 console.log("");
 console.log("Two manual steps remain before the in-app Connect flow can finish.");
 console.log("They are console work only Muse cannot do for you:");
