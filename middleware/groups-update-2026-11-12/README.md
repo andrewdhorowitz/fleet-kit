@@ -27,21 +27,30 @@ rule: Andrew runs the update script once in Termux.
      `needs_owner` with state `manual_only` — membership there stays
      a manual Groups-UI step.
    - Unknown groups are refused with a validation error.
-2. **The OWNERS GATE.** Any `groups.members.add` /
-   `groups.members.remove` against the Owners group stops at a
-   `needs_approval` preview (the protocol's existing §3.7 preview
-   machinery) whose text states the exact proposed change and that
-   Owners carries tester access to every fleet app — Andrew's
-   Nov 12 rule (invitation runbook rule (d)). The simple one-click
-   confirmation does not satisfy this gate. Ordinary groups are
-   unchanged at the Worker layer: their one-click confirmation is
-   enforced at the caller layer by Andrew's standing click rule and
-   recorded per group in the registry.
-   *Known protocol state, deliberately not papered over:* this build
-   stores previews but has **no approval-redemption path for any
-   action**, so an Owners change stops at the preview; how an
-   approved Owners change executes is Andrew's open decision (see
-   the build report).
+2. **Owners is manual-only — DECIDED Nov 12, 2026.** Andrew chose
+   option (b) on the approval-redemption question, in his words:
+   "Manual change and listen for change artifacts and activate any
+   next actions." Any `groups.members.add` /
+   `groups.members.remove` against the Owners group returns
+   `needs_owner` with state `manual_only`: Owners membership
+   changes are made by Andrew by hand in the Google Groups UI, and
+   the middleware **never** executes them. The approval-redemption
+   protocol addition is **not** being built. (This supersedes the
+   earlier OWNERS GATE `needs_approval` preview encoding of runbook
+   rule (d); the §3.7 preview machinery itself is untouched and
+   still serves the other consequential actions.) Ordinary groups
+   are unchanged at the Worker layer: their one-click confirmation
+   is enforced at the caller layer by Andrew's standing click rule
+   and recorded per group in the registry.
+   **The witness leg:** `groups.get` on Owners stays enabled — for
+   this group the middleware is read-only witness. When a roster
+   change is observed, Muse surfaces it and activates the standing
+   next actions (verify Play tester-list implications; records
+   sweep of TESTER-LINKS.md / unified-group-config.json /
+   tester-groups.json). The witness activates only once the
+   Workspace chain below has landed and the settling `groups.get`
+   test passes; until then, manual Owners changes are not
+   observable to the middleware.
 3. **The registry is deposited as a Worker secret**
    (`MW_GROUP_REGISTRY`) — configuration riding the fleet's
    established owner-run secret channel, so addresses can be
@@ -104,7 +113,11 @@ mw.py invoke groups.get execute '{"groupKey":"trusted-contacts"}' "Groups update
 A roster coming back proves the whole leg end to end: domain groups
 exist, the DWD grant works, the registry resolves, and the Worker can
 manage Workspace groups. `groups.get` against `owners` is the second
-read; an Owners **add** deliberately stops at the gate preview.
+read — and it doubles as the witness baseline: the Owners roster
+observed there is the reference the roster-diff watch compares
+against (Andrew's Nov 12, 2026 decision (b)). An Owners **add**
+through the middleware deliberately returns `manual_only` — Owners
+changes are made by hand in the Groups UI.
 
 ## Rollback
 

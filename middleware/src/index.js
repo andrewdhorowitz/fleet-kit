@@ -5,14 +5,16 @@
 // server-side app-release group registry (MW_GROUP_REGISTRY) —
 // four-group model, domain-group targets, release order, and the
 // Nov 12, 2026 confirmation rules (simple one-click for ordinary
-// person adds at the caller layer; OWNERS GATE preview stop below).
+// person adds at the caller layer; Owners membership changes are
+// MANUAL-ONLY per Andrew's Nov 12, 2026 decision (b) — see the
+// Owners block in the groups handler).
 // Prepared by Muse; deployed only by the owner-run update script
 // in middleware/groups-update-2026-11-12/. The HTTP-500 error-builder
 // defect is deliberately untouched (separate builder-exchange item).
 
 const ACTION_CATALOG = {
   // --- WAVE 1A ACTIONS ---
-  "groups.members.add": { class: "mutation", async: false }, // Owners-group targets additionally stop at the OWNERS GATE in the handler (groups-update-2026-11-12)
+  "groups.members.add": { class: "mutation", async: false }, // Owners-group targets return needs_owner/manual_only in the handler — Owners changes are manual per Andrew's Nov 12, 2026 decision (groups-update-2026-11-12)
   "groups.members.remove": { class: "mutation", async: false }, // F1: implemented below
   "groups.get": { class: "read", async: false },
   "play.apps.create": { class: "consequential", async: true },
@@ -160,31 +162,29 @@ async function routeAction(action, mode, params, context, approval, env, request
       }, null, startTime);
     }
 
-    // OWNERS GATE (Andrew, Nov 12, 2026 — invitation runbook rule (d)):
-    // ANY membership change to the Owners group stops here with an
-    // exact preview, through the same §3.7 preview machinery as a
-    // consequential action. The preview states the exact proposed
-    // change and that Owners carries tester access to every fleet
-    // app; the simple one-click confirmation does NOT satisfy this
-    // gate. Ordinary groups stay mutation class — their confirmation
-    // is Andrew's one-click confirmation at action time, enforced at
-    // the caller layer by his standing click rule (recorded per group
-    // in the registry's `confirmation` field).
-    // Known protocol state, unchanged by this update: previews are
-    // stored but this build has no approval-redemption path for ANY
-    // action, so an Owners change stops at needs_approval here; how
-    // an approved Owners change executes is Andrew's open decision
-    // (see the build report, middleware-groups-update-2026-11-12.md).
+    // OWNERS — MANUAL ONLY (Andrew's decision, Nov 12, 2026,
+    // option (b), in his words: "Manual change and listen for
+    // change artifacts and activate any next actions"). Owners
+    // membership changes are made MANUALLY by Andrew in the Google
+    // Groups UI; the middleware NEVER executes them, and the
+    // approval-redemption protocol addition is NOT being built.
+    // This replaces the earlier OWNERS GATE needs_approval preview
+    // stop (the runbook rule (d) encoding); the §3.7 preview
+    // machinery itself is untouched and still serves the
+    // consequential actions. The middleware's role for Owners is
+    // read-only witness: groups.get stays enabled for this group
+    // so roster changes can be observed, surfaced, and their next
+    // actions activated. Ordinary groups stay mutation class —
+    // their confirmation is Andrew's one-click confirmation at
+    // action time, enforced at the caller layer by his standing
+    // click rule (recorded per group in the registry's
+    // `confirmation` field).
     if (group.key === "owners" && (action === "groups.members.add" || action === "groups.members.remove") && mode === "execute") {
-      if (!params.email) throw new Error("validation: Email required");
-      const previewId = `prv-${crypto.randomUUID()}`;
-      const previewData = {
-        change: `OWNERS GATE: proposed ${action} — member ${params.email} — on ${group.name} (${group.domain_address}). Owners carries tester access to every fleet app. This change proceeds only on Andrew's explicit, unambiguous confirmation; if there is any doubt about what was confirmed, the change does not happen.`,
-        params
-      };
-      await env.DB.prepare("INSERT INTO previews (preview_id, action, payload_json, expires_at) VALUES (?, ?, ?, datetime('now', '+1 day'))")
-        .bind(previewId, action, JSON.stringify(previewData)).run();
-      return buildResponse(request_id, auditId, "needs_approval", action, { preview: previewData, preview_id: previewId }, null, startTime);
+      return buildResponse(request_id, auditId, "needs_owner", action, {
+        group: group.key,
+        state: "manual_only",
+        owner_step: `Owners-group membership changes are manual per Andrew's Nov 12, 2026 decision (option (b)): make the change by hand in the Google Groups UI. The middleware never executes Owners changes; it only witnesses them — groups.get on Owners stays enabled so the change can be observed and its next actions activated.`
+      }, null, startTime);
     }
 
     const groupKey = group.domain_address;

@@ -3,7 +3,10 @@
 //
 // Why this exists: the Worker gains a server-side app-release group
 // registry (four-group model, domain-group targets, release order)
-// plus the OWNERS GATE in its groups.* handler. Following the fleet's
+// plus registry-aware groups.* handling — including Owners as
+// manual-only (Andrew's Nov 12, 2026 decision (b): Owners changes
+// are made by hand in the Groups UI; the middleware only witnesses
+// them via groups.get). Following the fleet's
 // standing rule, middleware maintenance is OWNER-RUN: Muse prepares
 // this package, Andrew runs this script once in Termux, and the
 // script speaks the Cloudflare API directly (wrangler does not run
