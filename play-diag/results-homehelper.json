@@ -1,0 +1,61 @@
+{
+ "deviceTierConfigs": {
+  "error_body": "<!DOCTYPE html>\n<html lang=en>\n  <meta charset=utf-8>\n  <meta name=viewport content=\"initial-scale=1, minimum-scale=1, width=device-width\">\n  <title>Error 404 (Not Found)!!1</title>\n  <style>\n    *{margin:0;padding:0}html,code{font:15px/22px arial,sans-serif}html{background:#fff;color:#222;padding:1",
+  "http": 404
+ },
+ "edits_delete_http": 204,
+ "edits_insert_http": 200,
+ "errors": [],
+ "generated_at": "2026-11-13T19:05:20.532268+00:00",
+ "package": "com.andrewdhorowitz.homehelper",
+ "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
+ "testers": {
+  "alpha": {
+   "googleGroups": [],
+   "http": 200,
+   "testers": []
+  },
+  "beta": {
+   "googleGroups": [],
+   "http": 200,
+   "testers": []
+  },
+  "internal": {
+   "googleGroups": [],
+   "http": 200,
+   "testers": []
+  },
+  "production": {
+   "error_body": "{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The track 'production' is not a testing track.\",\n    \"status\": \"INVALID_ARGUMENT\"\n  }\n}\n",
+   "http": 400
+  }
+ },
+ "tracks": [
+  {
+   "releases": [],
+   "track": "production"
+  },
+  {
+   "releases": [],
+   "track": "beta"
+  },
+  {
+   "releases": [],
+   "track": "alpha"
+  },
+  {
+   "releases": [
+    {
+     "name": "0.7.0",
+     "status": "completed",
+     "userFraction": null,
+     "versionCodes": [
+      "15"
+     ]
+    }
+   ],
+   "track": "internal"
+  }
+ ],
+ "tracks_list_http": 200
+}
