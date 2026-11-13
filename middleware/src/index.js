@@ -11,6 +11,26 @@
 // Prepared by Muse; deployed only by the owner-run update script
 // in middleware/groups-update-2026-11-12/. The HTTP-500 error-builder
 // defect is deliberately untouched (separate builder-exchange item).
+//
+// home-update-2026-11-13 (TWO change sets in this source, kept
+// separate below and in the build report):
+//   Change set 1 — NAMED AUTOMATIONS (spec:
+//   named-automations-spec-2026-11-13.md, approved by Andrew
+//   Nov 13, 2026). The middleware itself becomes the linked Smart
+//   Home service: /home/auth + /home/token + /home/fulfill routes,
+//   SYNC rendered dynamically from a D1 registry of named
+//   automations (one virtual switch per name), registry-admin
+//   actions (home.automations.*), and the home.automations.pulse
+//   action implementing the spec §4 pulse protocol and the §5
+//   honesty contract exactly. Deployed only by the owner-run
+//   update script in middleware/home-update-2026-11-13/.
+//   Change set 2 — ERROR-RESPONSE FIX (Middleware Exchange 3,
+//   filed since the first build): the pre-envelope error paths
+//   returned the bare error object instead of an HTTP Response,
+//   so unauthenticated/malformed calls surfaced as HTTP 500.
+//   They now return proper Responses with the intended status
+//   codes (401 before any action parsing, 400 malformed, 404
+//   unknown endpoint). No action behavior changes.
 
 const ACTION_CATALOG = {
   // --- WAVE 1A ACTIONS ---
@@ -25,7 +45,20 @@ const ACTION_CATALOG = {
   "iam.policy.set": { class: "consequential", async: false },           // (2) IAM policy caution
   "gcp.projects.create": { class: "consequential", async: true },       // (3) Project creation stops
   "contacts.merge": { class: "mutation", async: false },                // (4) Contact-merge confidence bar
-  "calendar.events.delete": { class: "mutation", async: false }         // (5) Shared-calendar deletes
+  "calendar.events.delete": { class: "mutation", async: false },       // (5) Shared-calendar deletes
+
+  // --- NAMED AUTOMATIONS (home-update-2026-11-13, change set 1) ---
+  // The registry is the allowlist (spec §2): only listed AND
+  // enabled automations can be pulsed. Triggering a named
+  // automation is Andrew-authorized by the spec, so the pulse is
+  // mutation class — it does NOT ride the §3.7 consequential
+  // preview machinery, and none of the five §1.8 judgment calls
+  // covers it.
+  "home.automations.list": { class: "read", async: false },
+  "home.automations.upsert": { class: "mutation", async: false },
+  "home.automations.set_enabled": { class: "mutation", async: false },
+  "home.automations.remove": { class: "mutation", async: false },
+  "home.automations.pulse": { class: "mutation", async: false }
 };
 
 export default {
@@ -36,11 +69,23 @@ export default {
     // 1. Health & Capabilities Check
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/v1/health") return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
-    
+
+    // 1b. Smart Home routes (home-update-2026-11-13, change set 1).
+    // Google calls these, not Muse: they are gated by the link
+    // code at authorize time and by Worker-issued tokens after,
+    // never by the Muse bearer token — so they route BEFORE the
+    // bearer check below.
+    if (url.pathname === "/home/auth" || url.pathname === "/home/token" || url.pathname === "/home/fulfill") {
+      return handleHome(request, env, ctx, url.pathname);
+    }
+
     // 2. Authentication (§3.2)
+    // home-update-2026-11-13, change set 2: errorHttpResponse wraps
+    // the error payload in a real HTTP Response — the bare object
+    // this used to return is what surfaced as HTTP 500.
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || authHeader !== `Bearer ${env.MUSE_BEARER_TOKEN}`) {
-      return errorResponse("unauthorized", false, "Invalid or missing token", "middleware", startTime, auditId, 401);
+      return errorHttpResponse("unauthorized", false, "Invalid or missing token", "middleware", startTime, auditId, 401);
     }
 
     if (request.method === "GET" && url.pathname === "/v1/capabilities") {
@@ -52,22 +97,22 @@ export default {
     }
 
     if (request.method !== "POST" || url.pathname !== "/v1/invoke") {
-      return errorResponse("validation", false, "Invalid endpoint", "middleware", startTime, auditId, 404);
+      return errorHttpResponse("validation", false, "Invalid endpoint", "middleware", startTime, auditId, 404);
     }
 
     // 3. Parse Envelope (§3.3)
     let body;
     try { body = await request.json(); } catch (e) {
-      return errorResponse("validation", false, "Malformed JSON", "middleware", startTime, auditId, 400);
+      return errorHttpResponse("validation", false, "Malformed JSON", "middleware", startTime, auditId, 400);
     }
 
     const { request_id, action, mode, params, context, approval } = body;
     if (!request_id || !action || !mode || !context?.reason) {
-      return errorResponse("validation", false, "Missing required envelope fields", "middleware", startTime, auditId, 400);
+      return errorHttpResponse("validation", false, "Missing required envelope fields", "middleware", startTime, auditId, 400);
     }
-    
+
     if (!ACTION_CATALOG[action]) {
-      return errorResponse("unknown_action", false, `Action ${action} not in catalog`, "middleware", startTime, auditId, 400);
+      return errorHttpResponse("unknown_action", false, `Action ${action} not in catalog`, "middleware", startTime, auditId, 400);
     }
 
     // 4. Idempotency Check (D1 - Ratified) (§3.4)
@@ -87,23 +132,34 @@ export default {
     // 5. Execution & Routing
     let finalResponse;
     try {
-      finalResponse = await routeAction(action, mode, params, context, approval, env, request_id, auditId, startTime);
+      finalResponse = await routeAction(action, mode, params, context, approval, env, request_id, auditId, startTime, ctx);
     } catch (err) {
       finalResponse = errorResponse("internal", true, err.message, "middleware", startTime, auditId, 500, request_id);
+    }
+
+    // home-update-2026-11-13, change set 1: a handler may pin the
+    // outer HTTP status via an `http_status` hint on its response
+    // object (the pulse action uses this for the spec §5 contract:
+    // 502/504 only when Home Graph rejects the reportState call).
+    // The hint is consumed here and never stored or serialized.
+    let outerStatus = 200;
+    if (finalResponse && typeof finalResponse.http_status === "number") {
+      outerStatus = finalResponse.http_status;
+      delete finalResponse.http_status;
     }
 
     // 6. Finalize Ledger & Audit
     await env.DB.prepare("UPDATE ledger SET status = ?, response_json = ? WHERE request_id = ?")
       .bind(finalResponse.status, JSON.stringify(finalResponse), request_id).run();
-      
+
     await env.DB.prepare("INSERT INTO audit (audit_id, request_id, caller, action, reason) VALUES (?, ?, ?, ?, ?)")
       .bind(auditId, request_id, "muse", action, context.reason).run();
 
-    return new Response(JSON.stringify(finalResponse), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify(finalResponse), { status: outerStatus, headers: { "Content-Type": "application/json" } });
   }
 };
 
-async function routeAction(action, mode, params, context, approval, env, request_id, auditId, startTime) {
+async function routeAction(action, mode, params, context, approval, env, request_id, auditId, startTime, ctx) {
   const meta = ACTION_CATALOG[action];
 
   // Consequential Preview Guard (§3.7) (Ratified - stored server side)
@@ -123,6 +179,12 @@ async function routeAction(action, mode, params, context, approval, env, request
     if (!jobRecord) throw new Error("validation: Job not found");
     const responsePayload = jobRecord.response_json ? JSON.parse(jobRecord.response_json) : { status: jobRecord.status };
     return buildResponse(request_id, auditId, "completed", action, { job_state: responsePayload }, null, startTime);
+  }
+
+  // Named Automations (home-update-2026-11-13, change set 1;
+  // spec §§2/4/5). Handlers live in the Home section below.
+  if (action.startsWith("home.automations.")) {
+    return routeHomeAction(action, params || {}, env, request_id, auditId, startTime, ctx);
   }
 
   // App Creation (Owner Assisted - §1.3)
@@ -273,6 +335,783 @@ function errorResponse(kind, retryable, message, provider, startTime, audit_id, 
     error: { kind, retryable, message, provider, side_effects: "unknown", detail: {} },
     duration_ms: Date.now() - startTime
   };
+}
+
+// home-update-2026-11-13, change set 2 (error-response fix): the
+// pre-envelope error paths (auth, routing, envelope parsing) must
+// return real HTTP Responses carrying the intended status code.
+// Returning the bare errorResponse object from fetch() is the
+// defect that surfaced as HTTP 500. In-envelope action errors keep
+// the existing protocol shape (errorResponse object, HTTP 200) —
+// authenticated well-formed calls are unaffected by this fix.
+function errorHttpResponse(kind, retryable, message, provider, startTime, audit_id, httpStatus, request_id = "unknown") {
+  const payload = errorResponse(kind, retryable, message, provider, startTime, audit_id, httpStatus, request_id);
+  return new Response(JSON.stringify(payload), { status: httpStatus, headers: { "Content-Type": "application/json" } });
+}
+
+// =====================================================================
+// NAMED AUTOMATIONS + SMART HOME FULFILLMENT
+// (home-update-2026-11-13, change set 1 — spec:
+// named-automations-spec-2026-11-13.md)
+//
+// The middleware itself is the linked Smart Home service (§1):
+//   GET/POST /home/auth    — account-linking page, gated by the
+//                            link code (HOME_LINK_CODE secret; the
+//                            value never appears in this repo).
+//   POST     /home/token   — authorization_code + refresh_token
+//                            grants; tokens stored hash-only in D1.
+//   POST     /home/fulfill — SYNC (rendered dynamically from the
+//                            registry), QUERY, EXECUTE, DISCONNECT.
+// One virtual switch per registry entry (§2/§3). Shapes follow the
+// proven prototype on the text-bridge Worker (the [test] Family
+// Board link), which stays live and untouched until migration
+// completes (spec §8). Storage is this Worker's own D1
+// (middleware-ledger): home_automations (the registry),
+// home_links, home_tokens, home_pulses — created lazily with
+// CREATE TABLE IF NOT EXISTS and also applied by the owner-run
+// update script.
+// The Home Graph service-account key rides in the
+// GOOGLE_HOME_SA_JSON Worker secret (same secret NAME as on the
+// text-bridge Worker; a separate deposit on this Worker — the
+// value never passes through code, chat, or this repo).
+// =====================================================================
+
+const HOME_AGENT_USER_ID = "andrew"; // single-user service, as in the prototype
+const HOME_LINK_CODE_SECRET = "HOME_LINK_CODE"; // env key name only
+const HOMEGRAPH_SCOPE = "https://www.googleapis.com/auth/homegraph";
+const HOMEGRAPH_REPORT_URL = "https://homegraph.googleapis.com/v1/devices:reportStateAndNotification";
+const HOMEGRAPH_REQUEST_SYNC_URL = "https://homegraph.googleapis.com/v1/devices:requestSync";
+const HOME_CODE_TTL_MS = 10 * 60 * 1000;
+const HOME_ACCESS_TTL_MS = 3600 * 1000;
+const HOME_PULSE_HOLD_MS = 1000; // spec §4 (200 ms risks dropped/coalesced edges)
+const HOME_DEFAULT_COOLDOWN_SECONDS = 10; // spec §2
+const HOME_REDIRECT_PREFIX = "https://oauth-redirect.googleusercontent.com/";
+// Placeholder labels only — the service's exact display name is
+// Andrew's to settle in the Actions console (spec §9b); device
+// names themselves come from the registry's display_name values.
+const HOME_SERVICE_LABEL = "your middleware service";
+const HOME_DEVICE_MANUFACTURER = "middleware";
+
+const HOME_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS home_automations (
+     slug TEXT PRIMARY KEY,
+     device_id TEXT NOT NULL,
+     display_name TEXT NOT NULL,
+     active INTEGER NOT NULL DEFAULT 0,
+     cooldown_seconds INTEGER NOT NULL DEFAULT 10,
+     known_state TEXT NOT NULL DEFAULT 'unknown',
+     last_pulse_at TEXT,
+     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+   )`,
+  `CREATE TABLE IF NOT EXISTS home_links (
+     agent_user_id TEXT PRIMARY KEY,
+     linked_at TEXT,
+     disconnected_at TEXT,
+     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+   )`,
+  `CREATE TABLE IF NOT EXISTS home_tokens (
+     token_hash TEXT PRIMARY KEY,
+     kind TEXT NOT NULL,
+     agent_user_id TEXT NOT NULL,
+     redirect_uri TEXT,
+     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     expires_at TEXT
+   )`,
+  `CREATE TABLE IF NOT EXISTS home_pulses (
+     pulse_key TEXT PRIMARY KEY,
+     slug TEXT NOT NULL,
+     request_id TEXT,
+     outcome TEXT NOT NULL,
+     detail TEXT,
+     result_json TEXT,
+     http_status INTEGER,
+     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+   )`,
+];
+
+let homeSchemaReady = false;
+async function ensureHomeSchema(env) {
+  if (homeSchemaReady) return;
+  for (const sql of HOME_SCHEMA) await env.DB.prepare(sql).run();
+  homeSchemaReady = true;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function b64urlEncode(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+function b64urlText(text) {
+  return b64urlEncode(new TextEncoder().encode(text));
+}
+
+// --- Registry helpers -------------------------------------------------
+
+function homeDeviceId(slug) {
+  return `mw-automation-${slug}`;
+}
+
+function homeSlugOk(slug) {
+  return typeof slug === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+function homeRowView(row) {
+  if (!row) return null;
+  return {
+    slug: row.slug,
+    device_id: row.device_id,
+    display_name: row.display_name,
+    active: row.active === 1,
+    cooldown_seconds: row.cooldown_seconds,
+    known_state: row.known_state,
+    last_pulse_at: row.last_pulse_at || null,
+    updated_at: row.updated_at,
+  };
+}
+
+async function getAutomation(env, slug) {
+  return env.DB.prepare("SELECT * FROM home_automations WHERE slug = ?").bind(slug).first();
+}
+
+async function listAutomations(env) {
+  const res = await env.DB.prepare("SELECT * FROM home_automations ORDER BY slug").all();
+  return (res.results || []).map(homeRowView);
+}
+
+async function setAutomationState(env, slug, knownState) {
+  await env.DB.prepare("UPDATE home_automations SET known_state = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
+    .bind(knownState, slug).run();
+}
+
+// Automatic requestSync after any registry change (spec §2).
+// Best-effort by design: the registry write is already durable;
+// a sync failure is reported in the action result, never thrown.
+async function requestHomeSync(env) {
+  if (!env.GOOGLE_HOME_SA_JSON) return { request_sync: "skipped", reason: "sa_not_configured" };
+  const link = await getHomeLink(env);
+  if (!link || !link.linked_at) return { request_sync: "skipped", reason: "not_linked" };
+  try {
+    const token = await getHomeGraphToken(env);
+    if (!token) return { request_sync: "failed", detail: "oauth_failed" };
+    const res = await fetch(HOMEGRAPH_REQUEST_SYNC_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: crypto.randomUUID(), agentUserId: HOME_AGENT_USER_ID, async: false }),
+    });
+    if (!res.ok) return { request_sync: "failed", detail: `homegraph_http_${res.status}` };
+    return { request_sync: "requested" };
+  } catch (_) {
+    return { request_sync: "failed", detail: "fetch_failed" };
+  }
+}
+
+// --- Link + token store (D1, hash-only tokens, prototype shapes) ------
+
+async function getHomeLink(env) {
+  return env.DB.prepare("SELECT * FROM home_links WHERE agent_user_id = ?").bind(HOME_AGENT_USER_ID).first();
+}
+
+function homeRandomToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function issueHomeToken(env, kind, ttlMs, extra) {
+  const raw = homeRandomToken();
+  const hash = await sha256Hex(raw);
+  await env.DB.prepare("INSERT INTO home_tokens (token_hash, kind, agent_user_id, redirect_uri, expires_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(hash, kind, HOME_AGENT_USER_ID, (extra && extra.redirect_uri) || null,
+      ttlMs ? new Date(Date.now() + ttlMs).toISOString() : null).run();
+  return raw;
+}
+
+async function findHomeToken(env, kind, raw) {
+  if (typeof raw !== "string" || !raw || raw.length > 512) return null;
+  const hash = await sha256Hex(raw);
+  const doc = await env.DB.prepare("SELECT * FROM home_tokens WHERE token_hash = ?").bind(hash).first();
+  if (!doc || doc.kind !== kind) return null;
+  if (doc.expires_at && Date.parse(doc.expires_at) <= Date.now()) return null;
+  return doc;
+}
+
+async function deleteHomeToken(env, raw) {
+  if (typeof raw !== "string" || !raw) return;
+  const hash = await sha256Hex(raw);
+  await env.DB.prepare("DELETE FROM home_tokens WHERE token_hash = ?").bind(hash).run();
+}
+
+// Resolves a presented link code to the agent identity, comparing
+// hashes so neither value is ever logged or echoed.
+async function resolveHomeLinkCode(env, presented) {
+  if (typeof presented !== "string" || !presented || !env[HOME_LINK_CODE_SECRET]) return null;
+  const [a, b] = await Promise.all([sha256Hex(presented), sha256Hex(env[HOME_LINK_CODE_SECRET])]);
+  return a === b ? HOME_AGENT_USER_ID : null;
+}
+
+// --- Home Graph client --------------------------------------------------
+
+const homeGraphTokenCache = { token: null, expiresAtMs: 0 };
+
+async function getHomeGraphToken(env) {
+  if (homeGraphTokenCache.token && Date.now() < homeGraphTokenCache.expiresAtMs - 60000) {
+    return homeGraphTokenCache.token;
+  }
+  if (!env.GOOGLE_HOME_SA_JSON) throw new Error("sa_missing");
+  let sa;
+  try { sa = JSON.parse(env.GOOGLE_HOME_SA_JSON); } catch (_) { throw new Error("sa_parse_failed"); }
+  if (!sa.client_email || !sa.private_key) throw new Error("sa_parse_failed");
+  const signingKey = await crypto.subtle.importKey(
+    "pkcs8", parsePem(sa.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+  );
+  const nowSec = Math.floor(Date.now() / 1000);
+  const signingInput = `${b64urlText(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64urlText(JSON.stringify({
+    iss: sa.client_email, sub: sa.client_email, aud: "https://oauth2.googleapis.com/token",
+    iat: nowSec, exp: nowSec + 3600, scope: HOMEGRAPH_SCOPE,
+  }))}`;
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", signingKey, new TextEncoder().encode(signingInput));
+  const assertion = `${signingInput}.${b64urlEncode(signature)}`;
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${encodeURIComponent(assertion)}`,
+  });
+  if (!res.ok) throw new Error("oauth_exchange_failed");
+  const data = await res.json();
+  if (!data.access_token) throw new Error("oauth_exchange_failed");
+  homeGraphTokenCache.token = data.access_token;
+  homeGraphTokenCache.expiresAtMs = Date.now() + (data.expires_in || 3600) * 1000;
+  return homeGraphTokenCache.token;
+}
+
+// One reportStateAndNotification call for one device. Never throws.
+// Failure classes follow the spec §5 contract: an HTTP rejection by
+// Home Graph is 502-class; a transport failure reaching it is
+// 504-class.
+async function reportHomeState(env, deviceId, on) {
+  let token;
+  try {
+    token = await getHomeGraphToken(env);
+  } catch (err) {
+    return { ok: false, detail: `oauth_${err.message || "failed"}`, httpStatus: 502 };
+  }
+  let res;
+  try {
+    res = await fetch(HOMEGRAPH_REPORT_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        agentUserId: HOME_AGENT_USER_ID,
+        payload: { devices: { states: { [deviceId]: { on } } } },
+      }),
+    });
+  } catch (_) {
+    return { ok: false, detail: "homegraph_fetch_failed", httpStatus: 504 };
+  }
+  if (!res.ok) return { ok: false, detail: `homegraph_http_${res.status}`, httpStatus: 502 };
+  return { ok: true };
+}
+
+// --- Registry-admin + pulse actions -------------------------------------
+
+async function routeHomeAction(action, params, env, request_id, auditId, startTime, ctx) {
+  await ensureHomeSchema(env);
+
+  if (action === "home.automations.list") {
+    return buildResponse(request_id, auditId, "completed", action,
+      { automations: await listAutomations(env) }, null, startTime);
+  }
+
+  if (action === "home.automations.upsert") {
+    const slug = params.slug;
+    if (!homeSlugOk(slug)) throw new Error("validation: slug required (lowercase letters, digits, dashes; max 64)");
+    const displayName = typeof params.display_name === "string" ? params.display_name.trim() : "";
+    if (!displayName || displayName.length > 80) throw new Error("validation: display_name required (max 80 chars)");
+    let cooldown = params.cooldown_seconds === undefined ? HOME_DEFAULT_COOLDOWN_SECONDS : Number(params.cooldown_seconds);
+    if (!Number.isInteger(cooldown) || cooldown < 0 || cooldown > 3600) throw new Error("validation: cooldown_seconds must be an integer 0..3600");
+    const existing = await getAutomation(env, slug);
+    // Explicit enablement (spec §2): a new entry starts INACTIVE
+    // unless this call itself sets active — listing a name never
+    // silently makes it triggerable.
+    const active = params.active === undefined
+      ? (existing ? existing.active : 0)
+      : (params.active === true || params.active === 1 ? 1 : 0);
+    await env.DB.prepare(
+      `INSERT INTO home_automations (slug, device_id, display_name, active, cooldown_seconds, known_state, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'unknown', CURRENT_TIMESTAMP)
+       ON CONFLICT(slug) DO UPDATE SET display_name = excluded.display_name,
+         active = excluded.active, cooldown_seconds = excluded.cooldown_seconds,
+         updated_at = CURRENT_TIMESTAMP`
+    ).bind(slug, homeDeviceId(slug), displayName, active, cooldown).run();
+    const sync = await requestHomeSync(env);
+    return buildResponse(request_id, auditId, "completed", action,
+      { automation: homeRowView(await getAutomation(env, slug)), ...sync }, null, startTime);
+  }
+
+  if (action === "home.automations.set_enabled") {
+    const slug = params.slug;
+    if (!homeSlugOk(slug)) throw new Error("validation: slug required");
+    const enabled = params.enabled !== undefined ? params.enabled : params.active;
+    if (typeof enabled !== "boolean") throw new Error("validation: enabled (boolean) required");
+    const existing = await getAutomation(env, slug);
+    if (!existing) {
+      return buildResponse(request_id, auditId, "refused", action,
+        { reason: "not_in_registry", slug }, null, startTime);
+    }
+    await env.DB.prepare("UPDATE home_automations SET active = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
+      .bind(enabled ? 1 : 0, slug).run();
+    const sync = await requestHomeSync(env);
+    return buildResponse(request_id, auditId, "completed", action,
+      { automation: homeRowView(await getAutomation(env, slug)), ...sync }, null, startTime);
+  }
+
+  if (action === "home.automations.remove") {
+    const slug = params.slug;
+    if (!homeSlugOk(slug)) throw new Error("validation: slug required");
+    const existing = await getAutomation(env, slug);
+    if (!existing) {
+      return buildResponse(request_id, auditId, "refused", action,
+        { reason: "not_in_registry", slug }, null, startTime);
+    }
+    await env.DB.prepare("DELETE FROM home_automations WHERE slug = ?").bind(slug).run();
+    const sync = await requestHomeSync(env);
+    return buildResponse(request_id, auditId, "completed", action,
+      { removed: slug, ...sync }, null, startTime);
+  }
+
+  if (action === "home.automations.pulse") {
+    return pulseAutomation(params, env, request_id, auditId, startTime, ctx);
+  }
+
+  throw new Error(`Action ${action} implemented but handler missing.`);
+}
+
+// The pulse (spec §4) under the §5 honesty contract. The result
+// reports the pipeline only: TRIGGER_DISPATCHED means Home Graph
+// accepted the on-report — whether the automation fired or any
+// device acted is UNOBSERVABLE and is stated as such.
+async function pulseAutomation(params, env, request_id, auditId, startTime, ctx) {
+  const action = "home.automations.pulse";
+  const slug = params.slug;
+  if (!homeSlugOk(slug)) throw new Error("validation: slug required");
+  const pulseKey = typeof params.idempotency_key === "string" && params.idempotency_key
+    ? params.idempotency_key : request_id;
+
+  // Idempotency (spec §4): a repeated key returns the original
+  // record — no second pulse is ever sent for the same key.
+  const prior = await env.DB.prepare("SELECT * FROM home_pulses WHERE pulse_key = ?").bind(pulseKey).first();
+  if (prior) {
+    const result = prior.result_json ? JSON.parse(prior.result_json) : { pipeline_stage: prior.outcome };
+    result.deduplicated = true;
+    const resp = buildResponse(request_id, auditId,
+      prior.outcome === "TRIGGER_DISPATCHED" ? "completed" : "failed",
+      action, result, null, startTime);
+    if (prior.http_status) resp.http_status = prior.http_status;
+    return resp;
+  }
+
+  const recordPulse = async (outcome, result, httpStatus) => {
+    await env.DB.prepare(
+      "INSERT INTO home_pulses (pulse_key, slug, request_id, outcome, detail, result_json, http_status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).bind(pulseKey, slug, request_id, outcome,
+      result && result.detail ? String(result.detail) : null,
+      result ? JSON.stringify(result) : null, httpStatus || null).run();
+  };
+
+  // Registry-only + enabled-only (spec §2): anything else is
+  // refused before any Google call is made.
+  const row = await getAutomation(env, slug);
+  if (!row) {
+    return buildResponse(request_id, auditId, "refused", action,
+      { reason: "not_in_registry", slug }, null, startTime);
+  }
+  if (row.active !== 1) {
+    return buildResponse(request_id, auditId, "refused", action,
+      { reason: "not_enabled", slug }, null, startTime);
+  }
+  if (!env.GOOGLE_HOME_SA_JSON) {
+    return buildResponse(request_id, auditId, "needs_owner", action, {
+      state: "sa_not_configured",
+      owner_step: "Deposit the Home Graph service-account JSON as the GOOGLE_HOME_SA_JSON secret on the andrew-middleware Worker (owner-run deposit step in the home-update-2026-11-13 report; the value never passes through chat or Muse).",
+    }, null, startTime);
+  }
+  const link = await getHomeLink(env);
+  if (!link || !link.linked_at) {
+    return buildResponse(request_id, auditId, "needs_owner", action, {
+      state: "not_linked",
+      owner_step: "Link the middleware service in Google Home first (the /home/auth page, gated by the link code). No pulse is possible until the link exists.",
+    }, null, startTime);
+  }
+
+  // Per-automation cooldown guard (spec §2, default 10 s).
+  if (row.last_pulse_at) {
+    const elapsedMs = Date.now() - Date.parse(row.last_pulse_at);
+    const cooldownMs = (row.cooldown_seconds || 0) * 1000;
+    if (elapsedMs < cooldownMs) {
+      return buildResponse(request_id, auditId, "refused", action, {
+        reason: "cooldown", slug,
+        retry_after_seconds: Math.ceil((cooldownMs - elapsedMs) / 1000),
+      }, null, startTime);
+    }
+  }
+
+  const triggerFailed = async (failure) => {
+    const result = {
+      pipeline_stage: "TRIGGER_FAILED",
+      verification: { homegraph_report_accepted: false, automation_fired: "UNOBSERVABLE", target_device_acted: "UNOBSERVABLE" },
+      slug, device_id: row.device_id, detail: failure.detail,
+    };
+    await recordPulse("TRIGGER_FAILED", result, failure.httpStatus);
+    const resp = buildResponse(request_id, auditId, "failed", action, result, null, startTime);
+    resp.http_status = failure.httpStatus; // 502/504 per spec §5
+    return resp;
+  };
+
+  // Self-healing pre-flight (spec §4): if the known state is ON or
+  // unknown, an out-of-band off + 500 ms wait precedes the pulse,
+  // so the on-edge is real.
+  if (row.known_state !== "off") {
+    const pre = await reportHomeState(env, row.device_id, false);
+    if (!pre.ok) { await setAutomationState(env, slug, "unknown"); return triggerFailed(pre); }
+    await setAutomationState(env, slug, "off");
+    await sleep(500);
+  }
+
+  const onRes = await reportHomeState(env, row.device_id, true);
+  if (!onRes.ok) { await setAutomationState(env, slug, "unknown"); return triggerFailed(onRes); }
+  await env.DB.prepare("UPDATE home_automations SET known_state = 'on', last_pulse_at = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
+    .bind(new Date().toISOString(), slug).run();
+
+  const result = {
+    pipeline_stage: "TRIGGER_DISPATCHED",
+    verification: { homegraph_report_accepted: true, automation_fired: "UNOBSERVABLE", target_device_acted: "UNOBSERVABLE" },
+    slug, device_id: row.device_id, idempotency_key: pulseKey, deduplicated: false,
+  };
+  await recordPulse("TRIGGER_DISPATCHED", result, null);
+
+  // Hold 1,000 ms, then reset off to re-arm the edge (spec §4).
+  await sleep(HOME_PULSE_HOLD_MS);
+  const offRes = await reportHomeState(env, row.device_id, false);
+  if (offRes.ok) {
+    await setAutomationState(env, slug, "off");
+  } else {
+    // Reset retries ×2 with 500 ms backoff in waitUntil; exhausted
+    // resets are flagged in D1 as STUCK_ON_RESET_FAILED (spec §4).
+    const retryReset = async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await sleep(500);
+        const again = await reportHomeState(env, row.device_id, false);
+        if (again.ok) { await setAutomationState(env, slug, "off"); return; }
+      }
+      await env.DB.prepare("UPDATE home_pulses SET outcome = 'STUCK_ON_RESET_FAILED', detail = ? WHERE pulse_key = ?")
+        .bind(offRes.detail, pulseKey).run();
+      await env.DB.prepare("INSERT INTO audit (audit_id, request_id, caller, action, reason) VALUES (?, ?, ?, ?, ?)")
+        .bind(`pulse-${pulseKey}`, request_id, "middleware", "home.automations.pulse",
+          `Reset-off exhausted retries for slug '${slug}': STUCK_ON_RESET_FAILED (${offRes.detail})`).run();
+    };
+    if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(retryReset());
+    else await retryReset();
+  }
+
+  return buildResponse(request_id, auditId, "completed", action, result, null, startTime);
+}
+
+// --- Smart Home HTTP routes (auth / token / fulfill) --------------------
+
+function homeHtmlPage(status, bodyHtml) {
+  return new Response(bodyHtml, {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+function homeJson(status, obj, extraHeaders) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { "Content-Type": "application/json", ...(extraHeaders || {}) },
+  });
+}
+
+function homeEscapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function homeAuthPage(fields, errorLine) {
+  const hidden = ["redirect_uri", "state", "client_id"]
+    .map((k) => `<input type="hidden" name="${k}" value="${homeEscapeHtml(fields[k] || "")}">`)
+    .join("\n      ");
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link middleware service</title></head>
+<body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
+<h1 style="font-size: 1.3em;">Link middleware service</h1>
+<p>This links your Google Home to ${HOME_SERVICE_LABEL} — virtual
+on/off switches, one per named automation you have enabled, that
+your own Google Home automations can use as starters. Nothing else
+is shared: no automation content, no device data.</p>
+${errorLine ? `<p style="color: #b00020;">${homeEscapeHtml(errorLine)}</p>` : ""}
+<form method="POST" action="/home/auth">
+      ${hidden}
+<p><label>Link code<br>
+<input type="password" name="link_code" autocomplete="off"
+  style="font-size: 1.1em; padding: 0.4em; width: 100%;"></label></p>
+<p><button type="submit" style="font-size: 1.1em; padding: 0.5em 1.2em;">
+Link</button></p>
+</form>
+</body></html>`;
+}
+
+async function handleHome(request, env, ctx, path) {
+  const url = new URL(request.url);
+  try {
+    await ensureHomeSchema(env);
+
+    if (path === "/home/auth") {
+      if (!env[HOME_LINK_CODE_SECRET]) {
+        return homeHtmlPage(403, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Linking disabled</title></head>
+<body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
+<h1 style="font-size: 1.3em;">Linking is not enabled</h1>
+<p>Account linking for this service has not been switched on on
+this server yet. Nothing was linked.</p>
+</body></html>`);
+      }
+      if (request.method === "GET") {
+        const fields = {
+          redirect_uri: url.searchParams.get("redirect_uri") || "",
+          state: url.searchParams.get("state") || "",
+          client_id: url.searchParams.get("client_id") || "",
+        };
+        if (!fields.redirect_uri.startsWith(HOME_REDIRECT_PREFIX)) {
+          return homeHtmlPage(400,
+            "<p>Missing or unexpected redirect address — linking can only return to Google. Nothing was linked.</p>");
+        }
+        return homeHtmlPage(200, homeAuthPage(fields, null));
+      }
+      if (request.method !== "POST") {
+        return homeJson(405, { ok: false, error: "method_not_allowed" }, { Allow: "GET, POST" });
+      }
+      const form = await request.formData();
+      const fields = {
+        redirect_uri: String(form.get("redirect_uri") || ""),
+        state: String(form.get("state") || ""),
+        client_id: String(form.get("client_id") || ""),
+      };
+      if (!fields.redirect_uri.startsWith(HOME_REDIRECT_PREFIX)) {
+        return homeHtmlPage(400,
+          "<p>Missing or unexpected redirect address — linking can only return to Google. Nothing was linked.</p>");
+      }
+      const agentUserId = await resolveHomeLinkCode(env, String(form.get("link_code") || ""));
+      if (!agentUserId) {
+        return homeHtmlPage(200, homeAuthPage(fields, "That link code did not match. Nothing was linked."));
+      }
+      const code = await issueHomeToken(env, "code", HOME_CODE_TTL_MS, { redirect_uri: fields.redirect_uri });
+      const sep = fields.redirect_uri.includes("?") ? "&" : "?";
+      let location = `${fields.redirect_uri}${sep}code=${encodeURIComponent(code)}`;
+      if (fields.state) location += `&state=${encodeURIComponent(fields.state)}`;
+      console.log(`home link code issued agent=${agentUserId}`);
+      return new Response(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
+    }
+
+    if (path === "/home/token") {
+      if (request.method !== "POST") {
+        return homeJson(405, { ok: false, error: "method_not_allowed" }, { Allow: "POST" });
+      }
+      let form;
+      try {
+        form = await request.formData();
+      } catch (_) {
+        try { form = new URLSearchParams(await request.text()); }
+        catch (_) { return homeJson(400, { error: "invalid_request" }); }
+      }
+      const get = (k) => {
+        const v = typeof form.get === "function" ? form.get(k) : null;
+        return v == null ? "" : String(v);
+      };
+      const grantType = get("grant_type");
+      if (grantType === "authorization_code") {
+        const codeRaw = get("code");
+        const tok = await findHomeToken(env, "code", codeRaw);
+        if (!tok) return homeJson(400, { error: "invalid_grant" });
+        const presentedRedirect = get("redirect_uri");
+        if (presentedRedirect && tok.redirect_uri && presentedRedirect !== tok.redirect_uri) {
+          return homeJson(400, { error: "invalid_grant" });
+        }
+        // Single-use: the code is burned before tokens are issued.
+        await deleteHomeToken(env, codeRaw);
+        const existing = await getHomeLink(env);
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          `INSERT INTO home_links (agent_user_id, linked_at, disconnected_at, updated_at) VALUES (?, ?, NULL, ?)
+           ON CONFLICT(agent_user_id) DO UPDATE SET linked_at = COALESCE(home_links.linked_at, excluded.linked_at),
+             disconnected_at = NULL, updated_at = excluded.updated_at`
+        ).bind(HOME_AGENT_USER_ID, now, now).run();
+        const accessToken = await issueHomeToken(env, "access", HOME_ACCESS_TTL_MS);
+        const refreshToken = await issueHomeToken(env, "refresh", null);
+        console.log(`home account linked agent=${HOME_AGENT_USER_ID} (previously linked: ${!!(existing && existing.linked_at)})`);
+        return homeJson(200, {
+          access_token: accessToken,
+          token_type: "Bearer",
+          refresh_token: refreshToken,
+          expires_in: Math.floor(HOME_ACCESS_TTL_MS / 1000),
+        });
+      }
+      if (grantType === "refresh_token") {
+        const tok = await findHomeToken(env, "refresh", get("refresh_token"));
+        if (!tok) return homeJson(400, { error: "invalid_grant" });
+        // A disconnected link revokes its refresh tokens too.
+        const linkNow = await getHomeLink(env);
+        if (!linkNow || !linkNow.linked_at) return homeJson(400, { error: "invalid_grant" });
+        // Refresh tokens are long-lived and NOT rotated (prototype
+        // lesson: a refresh path that drops the grant silently
+        // unlinks the service).
+        const accessToken = await issueHomeToken(env, "access", HOME_ACCESS_TTL_MS);
+        return homeJson(200, {
+          access_token: accessToken,
+          token_type: "Bearer",
+          expires_in: Math.floor(HOME_ACCESS_TTL_MS / 1000),
+        });
+      }
+      return homeJson(400, { error: "unsupported_grant_type" });
+    }
+
+    if (path === "/home/fulfill") {
+      if (request.method !== "POST") {
+        return homeJson(405, { ok: false, error: "method_not_allowed" }, { Allow: "POST" });
+      }
+      const auth = request.headers.get("Authorization") || "";
+      const presented = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+      const tok = await findHomeToken(env, "access", presented);
+      if (!tok) return homeJson(401, { error: "unauthorized" });
+      let body;
+      try { body = JSON.parse(await request.text()); }
+      catch (_) { return homeJson(400, { error: "bad_json" }); }
+      const requestId = body && typeof body.requestId === "string" ? body.requestId : "";
+      const inputs = body && Array.isArray(body.inputs) ? body.inputs : [];
+      const intent = inputs.length && inputs[0] ? inputs[0].intent : "";
+      const link = await getHomeLink(env);
+      // A live link record is required for every intent except
+      // DISCONNECT (which is what revokes it).
+      if (intent !== "action.devices.DISCONNECT" && (!link || !link.linked_at)) {
+        return homeJson(401, { error: "unauthorized" });
+      }
+
+      if (intent === "action.devices.DISCONNECT") {
+        // Revocation is by link state: fulfillment auth and the
+        // refresh grant both require a LIVE link record, so
+        // clearing linked_at revokes every outstanding token.
+        try {
+          await env.DB.prepare("UPDATE home_links SET linked_at = NULL, disconnected_at = ?, updated_at = ? WHERE agent_user_id = ?")
+            .bind(new Date().toISOString(), new Date().toISOString(), HOME_AGENT_USER_ID).run();
+        } catch (_) { /* disconnect is best-effort */ }
+        console.log(`home disconnected agent=${HOME_AGENT_USER_ID}`);
+        return homeJson(200, { requestId });
+      }
+
+      if (intent === "action.devices.SYNC") {
+        // SYNC is rendered DYNAMICALLY from the registry (spec
+        // §3): one virtual switch per registry entry.
+        const rows = await env.DB.prepare("SELECT * FROM home_automations ORDER BY slug").all();
+        const devices = (rows.results || []).map((row) => ({
+          id: row.device_id,
+          type: "action.devices.types.SWITCH",
+          traits: ["action.devices.traits.OnOff"],
+          name: {
+            defaultNames: [row.display_name],
+            name: row.display_name,
+            nicknames: [row.display_name],
+          },
+          willReportState: true,
+          deviceInfo: {
+            manufacturer: HOME_DEVICE_MANUFACTURER,
+            model: "virtual-switch-1",
+            hwVersion: "1.0",
+            swVersion: "1.0",
+          },
+        }));
+        return homeJson(200, { requestId, payload: { agentUserId: HOME_AGENT_USER_ID, devices } });
+      }
+
+      if (intent === "action.devices.QUERY") {
+        const asked = inputs[0] && inputs[0].payload && Array.isArray(inputs[0].payload.devices)
+          ? inputs[0].payload.devices : [];
+        const rows = await env.DB.prepare("SELECT * FROM home_automations").all();
+        const byDevice = new Map((rows.results || []).map((r) => [r.device_id, r]));
+        const devices = {};
+        const answer = (id) => {
+          const row = byDevice.get(id);
+          devices[id] = row
+            ? { status: "SUCCESS", online: true, on: row.known_state === "on" }
+            : { status: "ERROR", errorCode: "deviceNotFound" };
+        };
+        if (asked.length) {
+          for (const d of asked) { if (d && typeof d.id === "string") answer(d.id); }
+        } else {
+          for (const id of byDevice.keys()) answer(id);
+        }
+        return homeJson(200, { requestId, payload: { devices } });
+      }
+
+      if (intent === "action.devices.EXECUTE") {
+        // These are trigger devices: EXECUTE mirrors the commanded
+        // state into the registry. When Andrew fires one of his
+        // own automations, the resulting state report lands here
+        // too — per spec §6 it is LOGGED for completeness (audit
+        // row, caller "google-home") and nothing is done with it.
+        const commandsIn = inputs[0] && inputs[0].payload && Array.isArray(inputs[0].payload.commands)
+          ? inputs[0].payload.commands : [];
+        const results = [];
+        for (const cmd of commandsIn) {
+          const ids = cmd && Array.isArray(cmd.devices)
+            ? cmd.devices.map((d) => d && d.id).filter(Boolean) : [];
+          const execs = cmd && Array.isArray(cmd.execution) ? cmd.execution : [];
+          for (const ex of execs) {
+            if (!ex || ex.command !== "action.devices.commands.OnOff") {
+              results.push({ ids, status: "ERROR", errorCode: "notSupported" });
+              continue;
+            }
+            const newOn = !!(ex.params && ex.params.on === true);
+            const known = [];
+            for (const id of ids) {
+              const row = await env.DB.prepare("SELECT * FROM home_automations WHERE device_id = ?").bind(id).first();
+              if (!row) continue;
+              known.push(id);
+              await setAutomationState(env, row.slug, newOn ? "on" : "off");
+              try {
+                await env.DB.prepare("INSERT INTO audit (audit_id, request_id, caller, action, reason) VALUES (?, ?, ?, ?, ?)")
+                  .bind(`obs-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`, requestId || "fulfill",
+                    "google-home", "home.automations.observed",
+                    `State report for '${row.slug}' via EXECUTE (on=${newOn}); logged for completeness per spec §6, no action taken`).run();
+              } catch (_) { /* observability only */ }
+            }
+            if (!known.length) {
+              results.push({ ids, status: "ERROR", errorCode: "deviceNotFound" });
+            } else {
+              results.push({ ids: known, status: "SUCCESS", states: { online: true, on: newOn } });
+            }
+          }
+        }
+        return homeJson(200, { requestId, payload: { commands: results } });
+      }
+
+      return homeJson(200, { requestId, payload: { errorCode: "notSupported" } });
+    }
+
+    return homeJson(404, { ok: false, error: "not_found" });
+  } catch (err) {
+    console.log(`home ${path} FAILED class=${err && err.message ? err.message : "unknown"}`);
+    return homeJson(502, { ok: false, error: "storage_unavailable" });
+  }
 }
 
 // Lightweight JWT Signer for Service Accounts
