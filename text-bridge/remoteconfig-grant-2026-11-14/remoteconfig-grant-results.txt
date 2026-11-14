@@ -1,4 +1,8 @@
-remoteconfig-grant results — 2026-11-14 14:40:10 EST
-flag: IMPOSSIBLE: gcloud is not installed in this Termux
-preflight: – skipped (gcloud not found — install the Google Cloud CLI once, sign in, and re-run; the loop cannot fix this)
+remoteconfig-grant results — 2026-11-14 14:55:39 EST
+flag: INCOMPLETE
+preflight: ✓ gcloud login active (andrewhorowitz3@gmail.com)
+preflight: ✓ project family-routines-app (826159679918) reachable
+step 1 api firebaseremoteconfig.googleapis.com: ✓ already
+step 2 service account: ✓ found — firebase-adminsdk-fbsvc@family-routines-app.iam.gserviceaccount.com
+step 3 role grant: – skipped (add-iam-policy-binding failed | detail: ERROR: Policy modification failed. For a binding with condition, run "gcloud alpha iam policies lint-condition" to identify issues in condition. ERROR: (gcloud.projects.add-iam-policy-binding) INVALID_ARGUMENT: Role roles/firebaseremoteconfig.admin is not supported for this resource. )
 summary: INCOMPLETE — see the step lines above; full error detail in remoteconfig-grant-errors.txt
