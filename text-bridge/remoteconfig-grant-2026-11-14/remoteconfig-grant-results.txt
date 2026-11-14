@@ -1,4 +1,4 @@
-remoteconfig-grant results — 2026-11-14 14:35:25 EST
+remoteconfig-grant results — 2026-11-14 14:40:10 EST
 flag: IMPOSSIBLE: gcloud is not installed in this Termux
 preflight: – skipped (gcloud not found — install the Google Cloud CLI once, sign in, and re-run; the loop cannot fix this)
 summary: INCOMPLETE — see the step lines above; full error detail in remoteconfig-grant-errors.txt
