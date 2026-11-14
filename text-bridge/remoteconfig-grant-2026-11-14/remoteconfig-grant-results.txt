@@ -1,8 +1,8 @@
-remoteconfig-grant results — 2026-11-14 14:56:47 EST
-flag: INCOMPLETE
+remoteconfig-grant results — 2026-11-14 14:59:59 EST
+flag: SUCCESS
 preflight: ✓ gcloud login active (andrewhorowitz3@gmail.com)
 preflight: ✓ project family-routines-app (826159679918) reachable
 step 1 api firebaseremoteconfig.googleapis.com: ✓ already
 step 2 service account: ✓ found — firebase-adminsdk-fbsvc@family-routines-app.iam.gserviceaccount.com
-step 3 role grant: – skipped (add-iam-policy-binding failed | detail: ERROR: Policy modification failed. For a binding with condition, run "gcloud alpha iam policies lint-condition" to identify issues in condition. ERROR: (gcloud.projects.add-iam-policy-binding) INVALID_ARGUMENT: Role roles/firebaseremoteconfig.admin is not supported for this resource. )
-summary: INCOMPLETE — see the step lines above; full error detail in remoteconfig-grant-errors.txt
+step 3 role roles/cloudconfig.admin for firebase-adminsdk-fbsvc@family-routines-app.iam.gserviceaccount.com: ✓ applied (verified in the project IAM policy)
+summary: OK — API enabled, role granted, both verified by read-back
