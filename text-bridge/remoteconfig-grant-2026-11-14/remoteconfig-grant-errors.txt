@@ -1,4 +1,4 @@
-remoteconfig-grant errors — 2026-11-14 14:55:44 EST
+remoteconfig-grant errors — 2026-11-14 14:56:57 EST
 
 === add-iam-policy-binding (exit 1): gcloud projects add-iam-policy-binding family-routines-app --member=serviceAccount:firebase-adminsdk-fbsvc@family-routines-app.iam.gserviceaccount.com --role=roles/firebaseremoteconfig.admin --condition=None
 ERROR: Policy modification failed. For a binding with condition, run "gcloud alpha iam policies lint-condition" to identify issues in condition.

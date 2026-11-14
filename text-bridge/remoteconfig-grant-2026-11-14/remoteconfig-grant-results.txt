@@ -1,4 +1,4 @@
-remoteconfig-grant results — 2026-11-14 14:55:39 EST
+remoteconfig-grant results — 2026-11-14 14:56:47 EST
 flag: INCOMPLETE
 preflight: ✓ gcloud login active (andrewhorowitz3@gmail.com)
 preflight: ✓ project family-routines-app (826159679918) reachable
