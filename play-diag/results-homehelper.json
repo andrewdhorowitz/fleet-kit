@@ -6,7 +6,7 @@
  "edits_delete_http": 204,
  "edits_insert_http": 200,
  "errors": [],
- "generated_at": "2026-11-13T19:05:20.532268+00:00",
+ "generated_at": "2026-11-14T15:59:49.476864+00:00",
  "package": "com.andrewdhorowitz.homehelper",
  "service_account": "play-api@play-publisher-513614.iam.gserviceaccount.com",
  "testers": {
@@ -46,11 +46,11 @@
   {
    "releases": [
     {
-     "name": "0.7.0",
+     "name": "0.8.1",
      "status": "completed",
      "userFraction": null,
      "versionCodes": [
-      "15"
+      "17"
      ]
     }
    ],
