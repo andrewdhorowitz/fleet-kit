@@ -1,0 +1,21 @@
+# Fleet Termux requirements — commands that must exist on PATH.
+# One command per line. ensure-tools.sh treats the environment as
+# READY only when every command here resolves (plus gcloud, which
+# lives under $PREFIX/google-cloud-sdk/bin and is checked there).
+# Package-to-command mapping is NOT 1:1 (nodejs-lts -> node,
+# openssh -> ssh, python -> python3 + pip), which is why the check
+# list lives separately from the package lists.
+node
+npm
+npx
+git
+curl
+wget
+which
+python
+python3
+pip
+jq
+unzip
+ssh
+firebase

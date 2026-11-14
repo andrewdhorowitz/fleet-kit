@@ -1,0 +1,4 @@
+# Fleet Termux requirements — global npm packages.
+# One package per line; ensure-tools.sh installs whatever is missing
+# with npm install -g. This list is the source of truth.
+firebase-tools

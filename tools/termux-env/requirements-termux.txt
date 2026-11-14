@@ -1,0 +1,15 @@
+# Fleet Termux requirements — Termux (pkg) packages.
+# One package per line; ensure-tools.sh installs whatever is missing
+# in ONE pkg call. This list is the source of truth — to add a tool
+# to Andrew's base terminal, add its package here.
+git
+curl
+wget
+which
+nodejs-lts
+npm
+python
+jq
+unzip
+openssh
+ca-certificates

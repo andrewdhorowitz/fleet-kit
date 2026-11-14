@@ -1,34 +1,35 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ensure-tools.sh — fleet Termux environment ensurer (Andrew, Nov 14, 2026).
 #
-# Idea (Andrew's): the tools the fleet keeps needing — Node.js, the
-# Firebase CLI, gcloud, curl, git, and friends — should just LIVE in
-# his Termux, every time, instead of each owner-run package
-# discovering one missing mid-run. This script is the single place
-# that guarantees them:
+# Andrew's model, exactly: the REQUIREMENTS ARE LISTS, not code.
+#   requirements-termux.txt   Termux (pkg) packages, one per line
+#   requirements-npm.txt      global npm packages, one per line
+#   requirements-commands.txt commands that must exist on PATH
+# This script is only the applier: it reads the lists, installs
+# whatever is missing (the full set up front, in one pkg call, so
+# no later step stops on a missing dependency), and checks the
+# command list at the end. To change what lives in Andrew's base
+# terminal, edit the lists — not this script. (gcloud is the one
+# special case: it is not a pkg or npm package, so its installer
+# recipe from Nov 14, 2026 is coded below, and it is verified by
+# its path under $PREFIX rather than the command list.)
 #
-#   * FAST when everything is present: a row of command -v checks,
-#     no network, exits in well under a second. Safe to run from
-#     .bashrc on every shell startup (install-bashrc.sh wires that).
-#   * COMPLETE when something is missing: installs the full set up
-#     front — Termux packages in ONE pkg call, the Firebase CLI via
-#     npm, and the Google Cloud SDK via Google's installer with the
-#     Termux components fix — so a later step never stops to ask
-#     "where is X".
+# FAST when everything is present: command checks + a 24h stamp,
+# no network, exits in well under a second — safe from .bashrc at
+# every shell startup (install-bashrc.sh wires that, ONE time;
+# after that it is simply in effect, nobody runs a starter again).
 #
-# Idempotent: re-running changes nothing that is already right.
-# It never logs anyone in: authentication is reported at the end
-# (firebase / gcloud), never forced — a shell startup must not block
-# on an interactive login. Packages that need a login run it
-# themselves, once, in their own flow.
+# It never logs anyone in: sign-ins are reported at the end
+# (firebase / gcloud), never forced — a shell startup must not
+# block on an interactive login. Packages that need a login run
+# it themselves, once, in their own flow.
 #
 # Usage:  bash ~/work/fleet-kit/tools/termux-env/ensure-tools.sh [--force]
-#   --force skips the 24h stamp and re-checks everything (the checks
-#   are cheap; installs still only happen for what is missing).
 
 set -u
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
+cd "$(dirname "$0")"
 
 STAMP_DIR="$HOME/.fleet-termux-env"
 STAMP="$STAMP_DIR/last-full-check"
@@ -37,15 +38,21 @@ mkdir -p "$STAMP_DIR"
 GCLOUD_BIN="$PREFIX/google-cloud-sdk/bin"
 export PATH="$GCLOUD_BIN:$PATH"
 
-# ---------- fast path -------------------------------------------------------
-# Everything present and a full check ran within 24h: do nothing.
+read_list() { grep -v '^[[:space:]]*#' "$1" | grep -v '^[[:space:]]*$'; }
+TERMUX_PKGS=$(read_list requirements-termux.txt)
+NPM_PKGS=$(read_list requirements-npm.txt)
+WANT_CMDS=$(read_list requirements-commands.txt)
+
 all_present() {
-  for c in node npm npx git curl wget which python python3 jq unzip firebase; do
+  local c
+  for c in $WANT_CMDS; do
     command -v "$c" >/dev/null 2>&1 || return 1
   done
   [ -x "$GCLOUD_BIN/gcloud" ] || return 1
   return 0
 }
+
+# ---------- fast path ---------------------------------------------------------
 if [ "$FORCE" -eq 0 ] && all_present && [ -f "$STAMP" ]; then
   now=$(date +%s); then_s=$(stat -c %Y "$STAMP" 2>/dev/null || echo 0)
   if [ $((now - then_s)) -lt 86400 ]; then
@@ -53,37 +60,34 @@ if [ "$FORCE" -eq 0 ] && all_present && [ -f "$STAMP" ]; then
   fi
 fi
 
-echo "=== fleet Termux env — ensuring tools ==="
-changed=0
+echo "=== fleet Termux env — ensuring tools from the requirements lists ==="
 
-# ---------- Termux packages (one call, full set) ----------------------------
-# nodejs-lts carries node; npm is its own Termux package. python
-# gives python + python3 (gcloud wants python3). openssh for git
-# over ssh; ca-certificates so curl/npm trust the world; unzip for
-# SDK-style archives; jq because every fleet script ends up wanting
-# it; which because bare Termux famously lacks it (Nov 14 lesson).
-PKGS="git curl wget which nodejs-lts npm python jq unzip openssh ca-certificates"
-missing=""
-for c in git curl wget which node npm python3 jq unzip ssh; do
-  command -v "$c" >/dev/null 2>&1 || missing="$missing $c"
+# ---------- Termux packages (one call, full list) -----------------------------
+if all_present; then
+  echo "✓ Everything on the lists is already present."
+else
+  echo "Installing Termux packages from requirements-termux.txt:"
+  echo "  $TERMUX_PKGS"
+  pkg install -y $TERMUX_PKGS || true
+fi
+
+# ---------- global npm packages (from the list) -------------------------------
+for p in $NPM_PKGS; do
+  # firebase-tools -> the `firebase` command; generic rule: a global
+  # package counts as present when its same-named command resolves,
+  # with the one known rename handled explicitly.
+  cmd="$p"
+  [ "$p" = "firebase-tools" ] && cmd="firebase"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    echo "✓ npm package present: $p"
+  else
+    echo "Installing npm package: $p"
+    npm install -g "$p" || true
+  fi
 done
-if [ -n "$missing" ]; then
-  echo "Installing Termux packages:$PKGS"
-  pkg install -y $PKGS && changed=1
-else
-  echo "✓ Termux packages present (git curl wget which node npm python jq unzip ssh)"
-fi
 
-# ---------- Firebase CLI (npm global) ---------------------------------------
-if command -v firebase >/dev/null 2>&1; then
-  echo "✓ firebase-tools present ($(firebase --version 2>/dev/null))"
-else
-  echo "Installing firebase-tools (npm -g)…"
-  npm install -g firebase-tools && changed=1
-fi
-
-# ---------- Google Cloud SDK -------------------------------------------------
-# Andrew's proven recipe (Nov 14, 2026): the SDK lands under
+# ---------- Google Cloud SDK (special case: not a package) --------------------
+# Andrew's proven recipe (Nov 14, 2026): SDK under
 # $PREFIX/google-cloud-sdk (NOT ~/), and the components complaint
 # ("unknown [gcloud, gcloud-crc32c]") is fixed by re-running
 # install.sh with --override-components.
@@ -95,16 +99,14 @@ else
   if [ -f "$PREFIX/google-cloud-sdk/install.sh" ]; then
     "$PREFIX/google-cloud-sdk/install.sh" --override-components >/dev/null 2>&1 || true
   fi
-  [ -x "$GCLOUD_BIN/gcloud" ] && changed=1
 fi
 export PATH="$GCLOUD_BIN:$PATH"
 
-# ---------- verify + auth report (never forces a login) ----------------------
+# ---------- verify against the command list + auth report ---------------------
 echo "--- versions ---"
-for c in node npm git curl jq python3; do
+for c in node npm git curl jq python3 pip firebase; do
   command -v "$c" >/dev/null 2>&1 && echo "$c: $($c --version 2>/dev/null | head -1)" || echo "$c: MISSING"
 done
-command -v firebase >/dev/null 2>&1 && echo "firebase: $(firebase --version 2>/dev/null)" || echo "firebase: MISSING"
 [ -x "$GCLOUD_BIN/gcloud" ] && echo "gcloud: $(gcloud --version 2>/dev/null | head -1)" || echo "gcloud: MISSING"
 echo "--- sign-ins (report only) ---"
 if command -v firebase >/dev/null 2>&1; then
@@ -117,7 +119,7 @@ fi
 
 touch "$STAMP"
 if all_present; then
-  echo "=== fleet Termux env: READY (all tools present) ==="
+  echo "=== fleet Termux env: READY (everything on the requirements lists is present) ==="
 else
   echo "=== fleet Termux env: INCOMPLETE — see MISSING lines above; re-running is safe ==="
   exit 1
