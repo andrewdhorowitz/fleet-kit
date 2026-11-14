@@ -16,7 +16,15 @@
 #   2. The project's firebase-adminsdk-* service account — the
 #      account whose key the Worker holds as
 #      FIREBASE_SERVICE_ACCOUNT_JSON — is granted
-#      roles/firebaseremoteconfig.admin on the project.
+#      roles/cloudconfig.admin (Firebase Remote Config Admin) on
+#      the project. (Nov 14, 2026: the legacy role name
+#      roles/firebaseremoteconfig.admin is no longer grantable at
+#      project level — add-iam-policy-binding rejects it with
+#      "Role roles/firebaseremoteconfig.admin is not supported
+#      for this resource"; Google's current predefined role for
+#      Remote Config is roles/cloudconfig.admin, permissions
+#      cloudconfig.configs.get/update. A pre-existing legacy-name
+#      binding still counts as satisfied.)
 # Nothing else is touched: no other project, no other API, no other
 # role, no other member.
 #
@@ -67,7 +75,8 @@
 PROJECT_ID="family-routines-app"
 PROJECT_NUMBER="826159679918"
 API_NAME="firebaseremoteconfig.googleapis.com"
-ROLE="roles/firebaseremoteconfig.admin"
+ROLE="roles/cloudconfig.admin"
+LEGACY_ROLE="roles/firebaseremoteconfig.admin"
 SA_PREFIX="firebase-adminsdk-"
 SA_DOMAIN="@family-routines-app.iam.gserviceaccount.com"
 
@@ -225,14 +234,15 @@ step2() {
 binding_present() {
   gcloud projects get-iam-policy "$PROJECT_ID" --format=json \
     > "$WORKDIR/policy.json" 2>/dev/null || return 1
-  python3 - "$WORKDIR/policy.json" "$ROLE" "serviceAccount:$SA_EMAIL" <<'PY'
+  python3 - "$WORKDIR/policy.json" "$ROLE" "$LEGACY_ROLE" "serviceAccount:$SA_EMAIL" <<'PY'
 import json, sys
 try:
     policy = json.load(open(sys.argv[1]))
 except Exception:
     sys.exit(1)
+roles = {sys.argv[2], sys.argv[3]}
 for b in policy.get("bindings") or []:
-    if b.get("role") == sys.argv[2] and sys.argv[3] in (b.get("members") or []):
+    if b.get("role") in roles and sys.argv[4] in (b.get("members") or []):
         sys.exit(0)
 sys.exit(1)
 PY

@@ -12,7 +12,7 @@ both, under your own gcloud login, on that one project only:
 1. Enables the **Firebase Remote Config API**
    (`firebaseremoteconfig.googleapis.com`) — verified by read-back.
 2. Grants **Firebase Remote Config Admin**
-   (`roles/firebaseremoteconfig.admin`) to the project's
+   (`roles/cloudconfig.admin`) to the project's
    **firebase-adminsdk-\*** service account — the account whose key
    the Worker holds — verified in the project IAM policy read-back.
 
@@ -77,9 +77,16 @@ service-account list) — relay that line to Muse.
 
 **Safety notes:** the grant is one role on one project for one
 service account — the minimum that carries
-`firebase.remoteconfig.get` + `firebase.remoteconfig.update` as a
+`cloudconfig.configs.get` + `cloudconfig.configs.update` as a
 single standard role. It is revocable at any time in the Cloud
 console (IAM → family-routines-app → remove the
-`roles/firebaseremoteconfig.admin` binding for that account);
+`roles/cloudconfig.admin` binding for that account);
 removing it returns the mirror to its current 403 state and
 changes nothing else.
+
+**Role-name note (Nov 14, 2026):** the first converger run failed
+at the grant step — `add-iam-policy-binding` rejects the legacy
+role name `roles/firebaseremoteconfig.admin` with "not supported
+for this resource". Google's current predefined Remote Config
+role is `roles/cloudconfig.admin`; the script now grants that
+(a pre-existing legacy-name binding still counts as satisfied).
