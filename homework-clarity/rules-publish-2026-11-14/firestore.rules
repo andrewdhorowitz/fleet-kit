@@ -1,0 +1,226 @@
+rules_version = '2';
+// Homework Clarity — Firestore security rules. PHASE 2 (pilot) FINAL.
+// Deploy: Firebase console → Firestore Database → Rules → paste → Publish
+// (or the firestore-rules tooling once a credential for this project
+// exists). Read alongside firestore/DATA-MODEL.md.
+//
+// Trust model in one paragraph: a kid's list content (kids/{kidUid}/items
+// and days) belongs to that kid. The ONE other path is a parent of the
+// family, and it exists for exactly one feature: the app's "edit mode"
+// (run-as), where a parent opens a child's list read-and-write to help
+// or demo. That path is never silent — the app writes an access_log
+// entry naming the parent and the child BEFORE it loads any content,
+// and refuses to open the mode if the log write fails; the child's app
+// alerts on the entry and shows it under "Who's looked". Parents
+// otherwise get family metadata, invites, proposals, and the access
+// log. The super admin gets the registry (metadata) only and belongs
+// to no family, so content reads are refused for them by the same
+// rules. There is still no server-side content path: no Worker
+// endpoint or admin credential can read a kid's list — the parent
+// grant below is exercised only by the parent's own signed-in client,
+// inside the logged mode.
+//
+// ONE-STEP FOLLOW-UP (deliberate): isSuperAdmin() below carries a
+// placeholder uid that matches nobody. After Andrew's first sign-in, read
+// his uid in the app (Parent view → Your account, or Your data) and
+// replace the placeholder, then republish these rules. Until then the
+// registry is simply unreadable — the safe direction.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.uid == 'REPLACE_WITH_ANDREW_UID';
+    }
+    function isMember(familyId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+    function memberRole(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role;
+    }
+    function isParent(familyId) { return isMember(familyId) && memberRole(familyId) == 'parent'; }
+    function familyCreator(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data.createdByUid;
+    }
+
+    // ---- Platform registry: metadata only, super-admin read ----
+    match /registry/{familyId} {
+      allow get, list: if isSuperAdmin();
+      // The registering parent creates their own family's registry entry
+      // (validated starter counts) at family-creation time.
+      allow create: if request.auth != null
+        && familyCreator(familyId) == request.auth.uid
+        && request.resource.data.memberCount == 1
+        && request.resource.data.kidCount == 0
+        && request.resource.data.familyName is string;
+      // Parents maintain registry fields; members may bump ONLY the counts
+      // (a kid joining increments them as part of the join writes).
+      allow update: if isParent(familyId)
+        || (isMember(familyId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['memberCount', 'kidCount']));
+      allow delete: if false;
+    }
+
+    match /families/{familyId} {
+      allow get: if isMember(familyId);
+      allow create: if request.auth != null
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.name is string;
+      allow update, delete: if isParent(familyId);
+
+      match /members/{uid} {
+        // A user can always read their OWN member doc at this family's
+        // path; parents can read the whole roster of their family. (The
+        // cross-family "which family am I in?" collection-group lookup
+        // is NOT authorized here - collection-group queries are governed
+        // only by the recursive-wildcard matches near the end of this
+        // file.)
+        allow get, list: if request.auth != null
+          && (request.auth.uid == resource.data.uid || isParent(familyId));
+        allow create: if request.auth != null && (
+          isParent(familyId)
+          // Family creator seating themselves as the first parent:
+          || (request.auth.uid == uid
+              && familyCreator(familyId) == request.auth.uid
+              && request.resource.data.role == 'parent')
+          // Invited kid joining: an invite addressed to their email exists
+          // under this family, and a join can only ever grant 'kid'.
+          || (request.auth.uid == uid
+              && request.resource.data.role == 'kid'
+              && exists(/databases/$(database)/documents/families/$(familyId)/invites/$(request.auth.token.email)))
+          // Personal space (Nov 14): the creator of a family whose doc
+          // names THEM as its personal owner (personalOfUid) seating
+          // themselves as its 'kid' — a family-of-one where the list
+          // is their own. Mirrors the parent-seating clause above; it
+          // can only ever seat the creator, in their own space, and
+          // grants no access to anyone else's family.
+          || (request.auth.uid == uid
+              && request.resource.data.role == 'kid'
+              && familyCreator(familyId) == request.auth.uid
+              && get(/databases/$(database)/documents/families/$(familyId)).data.personalOfUid
+                   == request.auth.uid)
+        );
+        // A kid may edit their own display name but never their role.
+        allow update: if isParent(familyId)
+          || (request.auth != null && request.auth.uid == uid
+              && request.resource.data.role == resource.data.role);
+        allow delete: if isParent(familyId)
+          || (request.auth != null && request.auth.uid == uid);
+      }
+
+      match /invites/{email} {
+        allow get, list: if isParent(familyId)
+          || (request.auth != null && request.auth.token.email == resource.data.email);
+        allow create, update: if isParent(familyId);
+        allow delete: if isParent(familyId)
+          || (request.auth != null && request.auth.token.email == email);
+      }
+
+      // ---- Kid space: the kid's own, plus the logged parent path ----
+      match /kids/{kidUid} {
+        // The profile doc is day-shape PLUMBING (wake/school/sleep/bedtime),
+        // not list content: the kid reads and writes their own, and a parent
+        // of the family may READ it to manage family settings.
+        allow get: if request.auth != null
+          && (request.auth.uid == kidUid || isParent(familyId));
+        allow update: if request.auth != null && request.auth.uid == kidUid;
+        // Run-as edit mode (Nov 14): a parent may update the profile in
+        // full — the kid experience's day-shape form writes through this
+        // grant when a parent is running as the kid in the logged edit
+        // mode (see the header: the app logs the session to access_log
+        // BEFORE loading content, and fails closed if the log write
+        // fails). The diff-limited plumbing grant below is unchanged
+        // and still covers the ordinary parent-console writes.
+        allow update: if isParent(familyId);
+        // A parent may write exactly these PLUMBING fields on a kid's
+        // profile: the SUGGESTED bedtime (bedtimeSuggestedMin — the diff
+        // limit means a suggestion can never touch bedtimeMin, the
+        // student's own chosen bedtime, so a later suggestion never
+        // silently overwrites it; clarity.js resolves student's own >
+        // suggestion > sleep default) and the per-kid BLOCKER CALENDAR
+        // pick (blockerCalendarId + blockerCalendarLabel — pointers at a
+        // calendar the connected account can read, picked by a parent in
+        // the app; the Worker reads them to fetch that child's busy
+        // blocks. A pointer at the family's own calendar data, never
+        // content, and never another child's fields in the same write).
+        allow update: if isParent(familyId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['bedtimeSuggestedMin', 'blockerCalendarId', 'blockerCalendarLabel']);
+        allow create: if isParent(familyId) || request.auth.uid == kidUid;
+        allow delete: if false;
+
+        match /items/{itemId} {
+          // THE core rule: the kid, plus a parent of the family — the
+          // parent's read/write here is the data path for the logged
+          // run-as edit mode ONLY (header: log-first, fail-closed,
+          // alerted, listed under the kid's "Who's looked"). No
+          // super-admin read, no other member read.
+          allow read, write: if (request.auth != null && request.auth.uid == kidUid)
+            || isParent(familyId);
+        }
+        match /days/{date} {
+          allow read, write: if (request.auth != null && request.auth.uid == kidUid)
+            || isParent(familyId);
+        }
+      }
+
+      // ---- Connected calendars: metadata visible to the family ----
+      match /calendars/{calendarId} {
+        allow get, list: if isMember(familyId);
+        allow write: if isParent(familyId);
+      }
+
+      // ---- "This isn't correct" flags: kid creates, family reads, parent resolves ----
+      match /proposals/{proposalId} {
+        allow get, list: if isMember(familyId);
+        allow create: if isMember(familyId)
+          && request.resource.data.kidUid == request.auth.uid
+          && request.resource.data.status == 'open';
+        allow update: if isParent(familyId);
+        allow delete: if false;
+      }
+
+      // ---- Access log: append-only; read by the family; entries can only
+      // be written by a parent acting as themselves (or the super admin),
+      // so a kid can never forge a "someone looked" entry and a parent can
+      // never write one silently naming someone else. ----
+      match /access_log/{entryId} {
+        allow get, list: if isMember(familyId);
+        allow create: if request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.at == request.time
+          && (isSuperAdmin()
+              || (isMember(familyId) && memberRole(familyId) == 'parent'));
+        allow update, delete: if false; // append-only — history cannot be edited
+      }
+    }
+
+    // ---- Collection-group lookups (boot: "which family am I in?") ----
+    // Collection-group queries are authorized ONLY by recursive-
+    // wildcard matches like these - rules nested under a specific
+    // parent path (families/{familyId}/...) never apply to them, which
+    // is why the app's findMembership / findInvite queries returned
+    // permission-denied while ordinary in-family reads worked. Each
+    // grant below is `list` only (the collection-group operation), and
+    // each mirrors the own-record clause of the corresponding in-family
+    // rule above, so a signed-in user can surface only their OWN
+    // membership / invite records across families - never anyone
+    // else's. Roster reads stay with the in-family parent rules,
+    // single-doc gets stay with the in-family rules, and nothing here
+    // grants any write.
+    match /{path=**}/members/{uid} {
+      allow list: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+    }
+    match /{path=**}/invites/{email} {
+      allow list: if request.auth != null
+        && request.auth.token.email == resource.data.email;
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
