@@ -367,10 +367,18 @@ function errorHttpResponse(kind, retryable, message, provider, startTime, audit_
 //                            grants; tokens stored hash-only in D1.
 //   POST     /home/fulfill — SYNC (rendered dynamically from the
 //                            registry), QUERY, EXECUTE, DISCONNECT.
-// One virtual switch per registry entry (§2/§3). Shapes follow the
-// proven prototype on the text-bridge Worker (the [test] Family
-// Board link), which stays live and untouched until migration
-// completes (spec §8). Storage is this Worker's own D1
+// One virtual contact sensor per registry entry (§2/§3): type
+// action.devices.types.DOOR + trait action.devices.traits.OpenClose
+// (contact-sensor-update-2026-11-15). Originally presented as a
+// virtual switch (SWITCH + OnOff, the shape of the proven prototype
+// on the text-bridge Worker, the [test] Family Board link) — but
+// Google Home does not offer that switch as a starter in its
+// automation editor, so no routine could fire from a pulse
+// (confirmed by Andrew Nov 14, 2026). Contact sensors ARE offered
+// as starters ("when the contact opens"), so the presentation
+// changed in place: same registry, same device ids, new type and
+// trait. The prototype link stays live and untouched until
+// migration completes (spec §8). Storage is this Worker's own D1
 // (middleware-ledger): home_automations (the registry),
 // home_links, home_tokens, home_pulses — created lazily with
 // CREATE TABLE IF NOT EXISTS and also applied by the owner-run
@@ -388,7 +396,7 @@ const HOMEGRAPH_REPORT_URL = "https://homegraph.googleapis.com/v1/devices:report
 const HOMEGRAPH_REQUEST_SYNC_URL = "https://homegraph.googleapis.com/v1/devices:requestSync";
 const HOME_CODE_TTL_MS = 10 * 60 * 1000;
 const HOME_ACCESS_TTL_MS = 3600 * 1000;
-const HOME_PULSE_HOLD_MS = 10000; // spec §4; raised 1s -> 10s at Andrew's direction Nov 14, 2026 (pulse-hold-update-2026-11-14) so the on-state is visible on the Google Home tile while testing
+const HOME_PULSE_HOLD_MS = 10000; // spec §4; raised 1s -> 10s at Andrew's direction Nov 14, 2026 (pulse-hold-update-2026-11-14) so the open state is visible on the Google Home tile while testing
 const HOME_DEFAULT_COOLDOWN_SECONDS = 10; // spec §2
 const HOME_REDIRECT_PREFIX = "https://oauth-redirect.googleusercontent.com/";
 // Display name settled by Andrew (spec §9b, Nov 13): the service
@@ -720,11 +728,13 @@ async function getHomeGraphToken(env) {
   return homeGraphTokenCache.token;
 }
 
-// One reportStateAndNotification call for one device. Never throws.
-// Failure classes follow the spec §5 contract: an HTTP rejection by
-// Home Graph is 502-class; a transport failure reaching it is
-// 504-class.
-async function reportHomeState(env, deviceId, on) {
+// One reportStateAndNotification call for one device. The device
+// is a contact sensor (OpenClose): open=true reports
+// openPercent 100 (fully open), open=false reports 0 (closed).
+// Never throws. Failure classes follow the spec §5 contract: an
+// HTTP rejection by Home Graph is 502-class; a transport failure
+// reaching it is 504-class.
+async function reportHomeState(env, deviceId, open) {
   let token;
   try {
     token = await getHomeGraphToken(env);
@@ -739,7 +749,7 @@ async function reportHomeState(env, deviceId, on) {
       body: JSON.stringify({
         requestId: crypto.randomUUID(),
         agentUserId: HOME_AGENT_USER_ID,
-        payload: { devices: { states: { [deviceId]: { on } } } },
+        payload: { devices: { states: { [deviceId]: { openPercent: open ? 100 : 0 } } } },
       }),
     });
   } catch (_) {
@@ -904,19 +914,21 @@ async function pulseAutomation(params, env, request_id, auditId, startTime, ctx)
     return resp;
   };
 
-  // Self-healing pre-flight (spec §4): if the known state is ON or
-  // unknown, an out-of-band off + 500 ms wait precedes the pulse,
-  // so the on-edge is real.
-  if (row.known_state !== "off") {
+  // Self-healing pre-flight (spec §4): if the known state is OPEN
+  // or unknown, an out-of-band closed report + 500 ms wait precedes
+  // the pulse, so the open-edge is real. (A pre-change 'on'/'off'
+  // value also lands here — anything not exactly 'closed' is
+  // re-baselined first.)
+  if (row.known_state !== "closed") {
     const pre = await reportHomeState(env, row.device_id, false);
     if (!pre.ok) { await setAutomationState(env, slug, "unknown"); return triggerFailed(pre); }
-    await setAutomationState(env, slug, "off");
+    await setAutomationState(env, slug, "closed");
     await sleep(500);
   }
 
-  const onRes = await reportHomeState(env, row.device_id, true);
-  if (!onRes.ok) { await setAutomationState(env, slug, "unknown"); return triggerFailed(onRes); }
-  await env.DB.prepare("UPDATE home_automations SET known_state = 'on', last_pulse_at = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
+  const openRes = await reportHomeState(env, row.device_id, true);
+  if (!openRes.ok) { await setAutomationState(env, slug, "unknown"); return triggerFailed(openRes); }
+  await env.DB.prepare("UPDATE home_automations SET known_state = 'open', last_pulse_at = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
     .bind(new Date().toISOString(), slug).run();
 
   const result = {
@@ -926,11 +938,11 @@ async function pulseAutomation(params, env, request_id, auditId, startTime, ctx)
   };
   await recordPulse("TRIGGER_DISPATCHED", result, null);
 
-  // Hold HOME_PULSE_HOLD_MS, then reset off to re-arm the edge (spec §4).
+  // Hold HOME_PULSE_HOLD_MS, then reset closed to re-arm the edge (spec §4).
   await sleep(HOME_PULSE_HOLD_MS);
-  const offRes = await reportHomeState(env, row.device_id, false);
-  if (offRes.ok) {
-    await setAutomationState(env, slug, "off");
+  const closedRes = await reportHomeState(env, row.device_id, false);
+  if (closedRes.ok) {
+    await setAutomationState(env, slug, "closed");
   } else {
     // Reset retries ×2 with 500 ms backoff in waitUntil; exhausted
     // resets are flagged in D1 as STUCK_ON_RESET_FAILED (spec §4).
@@ -938,13 +950,13 @@ async function pulseAutomation(params, env, request_id, auditId, startTime, ctx)
       for (let attempt = 0; attempt < 2; attempt++) {
         await sleep(500);
         const again = await reportHomeState(env, row.device_id, false);
-        if (again.ok) { await setAutomationState(env, slug, "off"); return; }
+        if (again.ok) { await setAutomationState(env, slug, "closed"); return; }
       }
       await env.DB.prepare("UPDATE home_pulses SET outcome = 'STUCK_ON_RESET_FAILED', detail = ? WHERE pulse_key = ?")
-        .bind(offRes.detail, pulseKey).run();
+        .bind(closedRes.detail, pulseKey).run();
       await env.DB.prepare("INSERT INTO audit (audit_id, request_id, caller, action, reason) VALUES (?, ?, ?, ?, ?)")
         .bind(`pulse-${pulseKey}`, request_id, "middleware", "home.automations.pulse",
-          `Reset-off exhausted retries for slug '${slug}': STUCK_ON_RESET_FAILED (${offRes.detail})`).run();
+          `Reset-closed exhausted retries for slug '${slug}': STUCK_ON_RESET_FAILED (${closedRes.detail})`).run();
     };
     if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(retryReset());
     else await retryReset();
@@ -986,7 +998,7 @@ function homeAuthPage(fields, errorLine) {
 <body style="font-family: sans-serif; max-width: 26em; margin: 3em auto; padding: 0 1em;">
 <h1 style="font-size: 1.3em;">Link ${HOME_SERVICE_LABEL}</h1>
 <p>This links your Google Home to ${HOME_SERVICE_LABEL} — virtual
-on/off switches, one per named automation you have enabled, that
+contact sensors, one per named automation you have enabled, that
 your own Google Home automations can use as starters. Nothing else
 is shared: no automation content, no device data.</p>
 ${errorLine ? `<p style="color: #b00020;">${homeEscapeHtml(errorLine)}</p>` : ""}
@@ -1168,12 +1180,26 @@ this server yet. Nothing was linked.</p>
 
       if (intent === "action.devices.SYNC") {
         // SYNC is rendered DYNAMICALLY from the registry (spec
-        // §3): one virtual switch per registry entry.
+        // §3): one virtual contact sensor per registry entry.
+        // contact-sensor-update-2026-11-15: the device is a DOOR
+        // with the OpenClose trait, discrete-only and query-only —
+        // the cloud-to-cloud shape of a contact sensor (Google's
+        // trait reference: "Sensors that can only report open
+        // state should set queryOnlyOpenClose to true"). The
+        // previous SWITCH + OnOff presentation was never offered
+        // as a starter in Google Home's automation editor; door /
+        // contact devices are ("when the contact opens").
+        // LockUnlock (the DOOR guide's other trait) is not
+        // applicable — this device has no lock.
         const rows = await env.DB.prepare("SELECT * FROM home_automations ORDER BY slug").all();
         const devices = (rows.results || []).map((row) => ({
           id: row.device_id,
-          type: "action.devices.types.SWITCH",
-          traits: ["action.devices.traits.OnOff"],
+          type: "action.devices.types.DOOR",
+          traits: ["action.devices.traits.OpenClose"],
+          attributes: {
+            discreteOnlyOpenClose: true,
+            queryOnlyOpenClose: true,
+          },
           name: {
             defaultNames: [row.display_name],
             name: row.display_name,
@@ -1182,7 +1208,7 @@ this server yet. Nothing was linked.</p>
           willReportState: true,
           deviceInfo: {
             manufacturer: HOME_DEVICE_MANUFACTURER,
-            model: "virtual-switch-1",
+            model: "virtual-contact-sensor-1",
             hwVersion: "1.0",
             swVersion: "1.0",
           },
@@ -1199,7 +1225,7 @@ this server yet. Nothing was linked.</p>
         const answer = (id) => {
           const row = byDevice.get(id);
           devices[id] = row
-            ? { status: "SUCCESS", online: true, on: row.known_state === "on" }
+            ? { status: "SUCCESS", online: true, openPercent: row.known_state === "open" ? 100 : 0 }
             : { status: "ERROR", errorCode: "deviceNotFound" };
         };
         if (asked.length) {
@@ -1216,6 +1242,9 @@ this server yet. Nothing was linked.</p>
         // own automations, the resulting state report lands here
         // too — per spec §6 it is LOGGED for completeness (audit
         // row, caller "google-home") and nothing is done with it.
+        // (The device is queryOnlyOpenClose, so Google should not
+        // send OpenClose commands at all; the handler stays as the
+        // spec §6 mirror if one ever arrives.)
         const commandsIn = inputs[0] && inputs[0].payload && Array.isArray(inputs[0].payload.commands)
           ? inputs[0].payload.commands : [];
         const results = [];
@@ -1224,28 +1253,30 @@ this server yet. Nothing was linked.</p>
             ? cmd.devices.map((d) => d && d.id).filter(Boolean) : [];
           const execs = cmd && Array.isArray(cmd.execution) ? cmd.execution : [];
           for (const ex of execs) {
-            if (!ex || ex.command !== "action.devices.commands.OnOff") {
+            if (!ex || ex.command !== "action.devices.commands.OpenClose") {
               results.push({ ids, status: "ERROR", errorCode: "notSupported" });
               continue;
             }
-            const newOn = !!(ex.params && ex.params.on === true);
+            // Discrete-only device: Google sends openPercent 0 or
+            // 100; anything above 0 counts as open.
+            const newOpen = !!(ex.params && typeof ex.params.openPercent === "number" && ex.params.openPercent > 0);
             const known = [];
             for (const id of ids) {
               const row = await env.DB.prepare("SELECT * FROM home_automations WHERE device_id = ?").bind(id).first();
               if (!row) continue;
               known.push(id);
-              await setAutomationState(env, row.slug, newOn ? "on" : "off");
+              await setAutomationState(env, row.slug, newOpen ? "open" : "closed");
               try {
                 await env.DB.prepare("INSERT INTO audit (audit_id, request_id, caller, action, reason) VALUES (?, ?, ?, ?, ?)")
                   .bind(`obs-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`, requestId || "fulfill",
                     "google-home", "home.automations.observed",
-                    `State report for '${row.slug}' via EXECUTE (on=${newOn}); logged for completeness per spec §6, no action taken`).run();
+                    `State report for '${row.slug}' via EXECUTE (open=${newOpen}); logged for completeness per spec §6, no action taken`).run();
               } catch (_) { /* observability only */ }
             }
             if (!known.length) {
               results.push({ ids, status: "ERROR", errorCode: "deviceNotFound" });
             } else {
-              results.push({ ids: known, status: "SUCCESS", states: { online: true, on: newOn } });
+              results.push({ ids: known, status: "SUCCESS", states: { online: true, openPercent: newOpen ? 100 : 0 } });
             }
           }
         }
