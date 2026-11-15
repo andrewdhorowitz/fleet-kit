@@ -388,7 +388,7 @@ const HOMEGRAPH_REPORT_URL = "https://homegraph.googleapis.com/v1/devices:report
 const HOMEGRAPH_REQUEST_SYNC_URL = "https://homegraph.googleapis.com/v1/devices:requestSync";
 const HOME_CODE_TTL_MS = 10 * 60 * 1000;
 const HOME_ACCESS_TTL_MS = 3600 * 1000;
-const HOME_PULSE_HOLD_MS = 1000; // spec §4 (200 ms risks dropped/coalesced edges)
+const HOME_PULSE_HOLD_MS = 10000; // spec §4; raised 1s -> 10s at Andrew's direction Nov 14, 2026 (pulse-hold-update-2026-11-14) so the on-state is visible on the Google Home tile while testing
 const HOME_DEFAULT_COOLDOWN_SECONDS = 10; // spec §2
 const HOME_REDIRECT_PREFIX = "https://oauth-redirect.googleusercontent.com/";
 // Display name settled by Andrew (spec §9b, Nov 13): the service
@@ -926,7 +926,7 @@ async function pulseAutomation(params, env, request_id, auditId, startTime, ctx)
   };
   await recordPulse("TRIGGER_DISPATCHED", result, null);
 
-  // Hold 1,000 ms, then reset off to re-arm the edge (spec §4).
+  // Hold HOME_PULSE_HOLD_MS, then reset off to re-arm the edge (spec §4).
   await sleep(HOME_PULSE_HOLD_MS);
   const offRes = await reportHomeState(env, row.device_id, false);
   if (offRes.ok) {
