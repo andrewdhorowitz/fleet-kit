@@ -20,17 +20,16 @@ rules_version = '2';
 // grant below is exercised only by the parent's own signed-in client,
 // inside the logged mode.
 //
-// ONE-STEP FOLLOW-UP (deliberate): isSuperAdmin() below carries a
-// placeholder uid that matches nobody. After Andrew's first sign-in, read
-// his uid in the app (Parent view → Your account, or Your data) and
-// replace the placeholder, then republish these rules. Until then the
-// registry is simply unreadable — the safe direction.
+// ONE-STEP FOLLOW-UP (done Nov 14, 2026): isSuperAdmin() below carries
+// Andrew's Firebase Auth UID (his Homework Clarity sign-in), filled in
+// Nov 14, 2026. Until then it carried a placeholder that matched
+// nobody, so the registry was simply unreadable — the safe direction.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function isSuperAdmin() {
-      return request.auth != null && request.auth.uid == 'REPLACE_WITH_ANDREW_UID';
+      return request.auth != null && request.auth.uid == 'vKnsMznjZZWx41Dp8FZ0xQyKcVv1';
     }
     function isMember(familyId) {
       return request.auth != null &&
