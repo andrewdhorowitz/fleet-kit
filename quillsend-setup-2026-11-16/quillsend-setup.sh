@@ -24,14 +24,17 @@
 #      service account with gcloud (running as Andrew) and deposits
 #      it — no manual download step (Andrew, Nov 16, 2026). The key
 #      file lives only on the phone; its value is never printed.
-#   6. Opt-in link (Andrew, Nov 16, 2026): the Play internal-test
-#      opt-in link exists ONLY in the Play Console Testers tab —
-#      Google never emails it and no API exposes it. It is a tracked
-#      parameter of this script: pass it as $1 or QS_OPT_IN_LINK, or
-#      paste it at the prompt; the script saves it to opt-in-link.txt
-#      next to itself and reports it in the results (it is a link,
-#      not a secret). Until it is captured, EVERY run ends with a
-#      loud "STILL MISSING" line — if it's manual, it's manual.
+#   6. Opt-in link (Andrew, Nov 16, 2026): the script's final
+#      check. The Play internal-test opt-in link exists ONLY in the
+#      Play Console Testers tab — Google never emails it and no API
+#      exposes it. After the install pass the script asks Andrew to
+#      find it (with directions), takes the paste (or $1 /
+#      QS_OPT_IN_LINK), saves it to opt-in-link.txt next to itself,
+#      and reports it in the results (a link, not a secret); Muse
+#      posts it to the app's release group at first publish — the
+#      invite Google never sends. Until it is captured, EVERY run
+#      ends with a loud "STILL MISSING" verdict — if it's manual,
+#      it's manual.
 #
 # Results land in quillsend-setup-results.txt next to this script —
 # send that file's contents to Muse when it finishes (it contains
@@ -227,35 +230,50 @@ fi
 log "Secrets now on the repo (names only):"
 gh secret list --repo "$REPO" 2>/dev/null | awk '{print "  " $1}' | tee -a "$RESULTS"
 
-# ---------- phase 5: Play internal-test opt-in link (tracked parameter) ----------
+# ---------- phase 5: final check — the Play opt-in link ----------
+# Andrew's framing (Nov 16, 2026): the script goes through the whole
+# install, then reports its one finding — everything else is good;
+# the Play link isn't there. The link exists ONLY in the Play Console
+# Testers tab (Google never emails it; no API exposes it), so the
+# script asks Andrew to find it, says exactly where, and prompts for
+# the paste. Captured once, it is saved to opt-in-link.txt next to
+# this script and reported in the results (a link, not a secret);
+# Muse then posts it to the app's release group at first publish —
+# the invite Google never sends. Until captured, every run ends
+# with the loud STILL MISSING verdict below.
 OPTIN_FILE="opt-in-link.txt"
 OPTIN_LINK=""
 [ -f "$OPTIN_FILE" ] && OPTIN_LINK="$(tr -d '[:space:]' < "$OPTIN_FILE")"
 if [ -z "$OPTIN_LINK" ] && [ -n "${1:-}" ]; then OPTIN_LINK="$1"; fi
 if [ -z "$OPTIN_LINK" ] && [ -n "${QS_OPT_IN_LINK:-}" ]; then OPTIN_LINK="$QS_OPT_IN_LINK"; fi
+log ""
+log "Final check — the Play internal-test opt-in link:"
 if [ -z "$OPTIN_LINK" ]; then
-  log "Please find the Play internal-test opt-in link — it is not on file yet,"
-  log "and it exists in exactly one place. Here is where it is:"
-  log "  Play Console -> QuillSend -> Internal testing -> Testers tab"
-  log "  -> copy the link under 'How testers join your test'."
-  log "Paste it here and this step is done for good."
+  log "  Everything else in this setup checks out. This link is the"
+  log "  one thing that isn't here — and it exists in exactly one"
+  log "  place. Please find it now:"
+  log "    Play Console -> QuillSend -> Internal testing -> Testers tab"
+  log "    -> copy the link under 'How testers join your test'."
+  log "  Paste it here and this step is done for good."
   printf 'Paste the opt-in link (or press Enter to leave it missing): '
   read -r OPTIN_LINK || OPTIN_LINK=""
 fi
 if [ -n "$OPTIN_LINK" ]; then
   if printf '%s' "$OPTIN_LINK" | grep -qE 'play\.google\.com/apps/(internaltest|test)/'; then
     printf '%s\n' "$OPTIN_LINK" > "$OPTIN_FILE"
-    log "Opt-in link on file: $OPTIN_LINK"
+    log "  Opt-in link captured: $OPTIN_LINK"
+    log "  Muse will post it to the app's release group at first publish."
     note "opt_in_link=$OPTIN_LINK"
   else
-    log "That does not look like a Play test opt-in link — NOT saved; the link is still missing."
+    log "  That does not look like a Play test opt-in link — NOT saved."
+    log "STILL MISSING: the Play internal-test opt-in link."
     note "opt_in_link=MISSING"
   fi
 else
-  log "STILL MISSING: the Play internal-test opt-in link (manual step — Play Console"
-  log "  -> QuillSend -> Internal testing -> Testers tab; paste it to Muse or re-run"
-  log "  this script and paste it at the prompt). Muse cannot fetch it and Google"
-  log "  never emails it; once captured, Muse files it and emails it back on publish."
+  log "STILL MISSING: the Play internal-test opt-in link — everything"
+  log "  else is good; this is the only gap. It lives in Play Console"
+  log "  -> QuillSend -> Internal testing -> Testers tab. Paste it to"
+  log "  Muse, or re-run this script and paste it at the prompt."
   note "opt_in_link=MISSING"
 fi
 
