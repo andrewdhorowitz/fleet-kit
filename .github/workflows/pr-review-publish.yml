@@ -1,0 +1,172 @@
+# PR-review publish gate — fleet pattern 27.
+# Spec: pr-review-publish-flow-spec-2026-11-16.md (shared-service-layer goal files).
+#
+# What this does:
+#   - On a pull request: validates .github/pr-publish.json (the opt-in
+#     config) and FAILS LOUDLY if it is malformed; syntax-checks the
+#     shell / node files the PR touches. Green here is part of what
+#     makes a PR "ready for review."
+#   - On a merged pull request, IF pr_review_publish.enabled is true in
+#     .github/pr-publish.json: verifies every registered package path
+#     exists on the merged tree and comments on the PR with the exact
+#     Termux one-liner for each package the PR touched. That comment is
+#     the publish notification — GitHub emails it to the repo owner.
+#     The publish itself still runs owner-side (Termux, owner space);
+#     this workflow never publishes, never merges, and holds no secret
+#     values (only the per-run GITHUB_TOKEN, scoped below).
+#   - If the flag is off or the file is absent, the merge job is a
+#     logged no-op. Direct-push behavior is unchanged.
+#
+# Reusable: other fleet repos may call this workflow with
+# `uses: andrewdhorowitz/fleet-kit/.github/workflows/pr-review-publish.yml@main`
+# from their own pull_request workflow; it reads the CALLER repo's
+# .github/pr-publish.json. No secrets are required or accepted.
+
+name: PR-review publish gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate PR-publish config + touched files
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate .github/pr-publish.json (fail loudly if malformed)
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys
+          path = ".github/pr-publish.json"
+          if not os.path.exists(path):
+              print("::notice::No .github/pr-publish.json — PR-review publish flow not adopted in this repo; nothing to validate.")
+              sys.exit(0)
+          def fail(msg):
+              print(f"::error::pr-publish.json is malformed: {msg}")
+              sys.exit(1)
+          try:
+              with open(path) as f:
+                  cfg = json.load(f)
+          except Exception as e:
+              fail(f"not valid JSON ({e})")
+          if not isinstance(cfg, dict) or not isinstance(cfg.get("pr_review_publish"), dict):
+              fail("top level must be an object containing a 'pr_review_publish' object")
+          flow = cfg["pr_review_publish"]
+          if not isinstance(flow.get("enabled"), bool):
+              fail("'pr_review_publish.enabled' must be a boolean")
+          pkgs = flow.get("packages")
+          if not isinstance(pkgs, list):
+              fail("'pr_review_publish.packages' must be a list")
+          if flow["enabled"] and not pkgs:
+              fail("flow is enabled but 'packages' is empty — nothing could ever be published")
+          for i, p in enumerate(pkgs):
+              if not isinstance(p, dict):
+                  fail(f"packages[{i}] must be an object")
+              for key in ("name", "path", "termux_command"):
+                  if not isinstance(p.get(key), str) or not p[key].strip():
+                      fail(f"packages[{i}].{key} must be a non-empty string")
+          print(f"pr-publish.json OK — enabled={flow['enabled']}, {len(pkgs)} package(s) registered.")
+          PYEOF
+      - name: Syntax-check files touched by this PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.pull_request.number }}"
+          if [ -z "$pr" ]; then
+            echo "::notice::No pull request in context — syntax check skipped."
+            exit 0
+          fi
+          files="$(gh api "repos/${{ github.repository }}/pulls/$pr/files" --paginate --jq '.[] | select(.status != "removed") | .filename')"
+          fail=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.sh)
+                if bash -n "$f"; then echo "bash -n OK: $f"; else echo "::error::bash syntax error in $f"; fail=1; fi
+                ;;
+              *.mjs|*.js)
+                if node --check "$f"; then echo "node --check OK: $f"; else echo "::error::node syntax error in $f"; fail=1; fi
+                ;;
+            esac
+          done <<< "$files"
+          exit "$fail"
+
+  publish-notify:
+    name: Post the Termux publish command (merged PRs, flag on only)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comment the one-liner for each touched package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, subprocess, sys
+          path = ".github/pr-publish.json"
+          if not os.path.exists(path):
+              print("::notice::No .github/pr-publish.json — publish notification skipped.")
+              sys.exit(0)
+          try:
+              with open(path) as f:
+                  cfg = json.load(f)
+              flow = cfg["pr_review_publish"]
+              enabled = flow["enabled"]
+              pkgs = flow["packages"]
+              assert isinstance(enabled, bool) and isinstance(pkgs, list)
+              for p in pkgs:
+                  for key in ("name", "path", "termux_command"):
+                      assert isinstance(p[key], str) and p[key].strip()
+          except Exception as e:
+              print(f"::error::pr-publish.json is malformed at merge time ({e}) — publish notification NOT posted. Fix the config.")
+              sys.exit(1)
+          if not enabled:
+              print("::notice::pr_review_publish.enabled is false — publish notification skipped by design.")
+              sys.exit(0)
+          pr = os.environ.get("PR_NUMBER", "")
+          repo = os.environ.get("REPO", "")
+          changed = set()
+          if pr:
+              out = subprocess.run(
+                  ["gh", "api", f"repos/{repo}/pulls/{pr}/files", "--paginate", "--jq", ".[].filename"],
+                  capture_output=True, text=True)
+              changed = {ln.strip() for ln in out.stdout.splitlines() if ln.strip()}
+          missing = [p for p in pkgs if not os.path.isdir(p["path"])]
+          if missing:
+              names = ", ".join(p["name"] for p in missing)
+              body = (f"⚠️ **Publish notification failed:** registered package path(s) not found on the merged tree: "
+                      f"{names}. The opt-in config (.github/pr-publish.json) is stale or the package was moved — "
+                      f"no Termux command is posted until this is fixed.")
+              subprocess.run(["gh", "pr", "comment", pr, "--repo", repo, "--body", body])
+              print(f"::error::Registered package path(s) missing on merged tree: {names}")
+              sys.exit(1)
+          touched = [p for p in pkgs if any(f == p["path"] or f.startswith(p["path"].rstrip("/") + "/") for f in changed)]
+          if not touched:
+              print("::notice::No registered package path was touched by this PR — no publish command to post.")
+              sys.exit(0)
+          lines = ["✅ **Merged — ready to publish from Termux.** Run the one-liner for each package this PR touched:", ""]
+          for p in touched:
+              lines.append(f"**{p['name']}** (`{p['path']}`)")
+              lines.append("```")
+              lines.append(p["termux_command"])
+              lines.append("```")
+              lines.append("")
+          lines.append("Nothing is published until that command runs on the phone — the publish stays in owner space, as designed.")
+          body = "\n".join(lines)
+          with open("/tmp/publish-comment.md", "w") as f:
+              f.write(body)
+          subprocess.run(["gh", "pr", "comment", pr, "--repo", repo, "--body-file", "/tmp/publish-comment.md"], check=True)
+          print(f"Posted publish command for: {', '.join(p['name'] for p in touched)}")
+          PYEOF
