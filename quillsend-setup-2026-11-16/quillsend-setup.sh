@@ -18,8 +18,12 @@
 #      known, QS_OAUTH_*_CLIENT_ID) into andrewdhorowitz/quillsend
 #      via gh. Secret VALUES never appear in the results file or the
 #      terminal summary — only names and timestamps.
-#   5. If ~/play-service-account.json exists, also deposits
-#      PLAY_SERVICE_ACCOUNT_JSON; otherwise notes it as still needed.
+#   5. PLAY_SERVICE_ACCOUNT_JSON: if the secret is already on the
+#      repo, skips. Else if ~/play-service-account.json exists,
+#      deposits it. Else CREATES a fresh key for the Play Publisher
+#      service account with gcloud (running as Andrew) and deposits
+#      it — no manual download step (Andrew, Nov 16, 2026). The key
+#      file lives only on the phone; its value is never printed.
 #
 # Results land in quillsend-setup-results.txt next to this script —
 # send that file's contents to Muse when it finishes (it contains
@@ -190,10 +194,27 @@ printf '%s' "$KEY_ALIAS" | gh secret set QS_KEY_ALIAS --repo "$REPO" && log "  Q
 printf '%s' "$KEY_PASS" | gh secret set QS_KEY_PASSWORD --repo "$REPO" && log "  QS_KEY_PASSWORD set"
 [ -n "$WEB_CLIENT_ID" ] && { printf '%s' "$WEB_CLIENT_ID" | gh secret set QS_OAUTH_WEB_CLIENT_ID --repo "$REPO" && log "  QS_OAUTH_WEB_CLIENT_ID set"; }
 [ -n "$ANDROID_CLIENT_ID" ] && { printf '%s' "$ANDROID_CLIENT_ID" | gh secret set QS_OAUTH_ANDROID_CLIENT_ID --repo "$REPO" && log "  QS_OAUTH_ANDROID_CLIENT_ID set"; }
-if [ -f "$HOME/play-service-account.json" ]; then
-  gh secret set PLAY_SERVICE_ACCOUNT_JSON --repo "$REPO" < "$HOME/play-service-account.json" && log "  PLAY_SERVICE_ACCOUNT_JSON set"
+# Play Publisher service-account key: check the repo first; deposit the
+# local file if one exists; otherwise create the key here, as Andrew.
+PLAY_SA="play-publisher@play-publisher-513614.iam.gserviceaccount.com"
+PLAY_KEY_FILE="$HOME/play-service-account.json"
+if gh secret list --repo "$REPO" 2>/dev/null | awk '{print $1}' | grep -qx "PLAY_SERVICE_ACCOUNT_JSON"; then
+  log "  PLAY_SERVICE_ACCOUNT_JSON already on the repo (skipping)"
+elif [ -f "$PLAY_KEY_FILE" ]; then
+  gh secret set PLAY_SERVICE_ACCOUNT_JSON --repo "$REPO" < "$PLAY_KEY_FILE" && log "  PLAY_SERVICE_ACCOUNT_JSON set (from $PLAY_KEY_FILE)"
 else
-  log "  PLAY_SERVICE_ACCOUNT_JSON not deposited (no ~/play-service-account.json found) — needed before the first publish, not for building."
+  pace
+  if gcloud iam service-accounts keys create "$PLAY_KEY_FILE" --iam-account="$PLAY_SA" 2>playkey-err.txt; then
+    chmod 600 "$PLAY_KEY_FILE"
+    log "  Play service-account key created: $PLAY_KEY_FILE (value never printed)"
+    gh secret set PLAY_SERVICE_ACCOUNT_JSON --repo "$REPO" < "$PLAY_KEY_FILE" && log "  PLAY_SERVICE_ACCOUNT_JSON set"
+  else
+    log "  PLAY KEY CREATION FAILED — stopping for diagnosis (no retry, no sibling keys):"
+    cat playkey-err.txt | tee -a "$RESULTS"
+    log "  (Common causes: the 10-key cap on that service account, or missing"
+    log "   iam.serviceAccountKeys.create permission on project play-publisher-513614.)"
+    exit 1
+  fi
 fi
 log "Secrets now on the repo (names only):"
 gh secret list --repo "$REPO" 2>/dev/null | awk '{print "  " $1}' | tee -a "$RESULTS"
