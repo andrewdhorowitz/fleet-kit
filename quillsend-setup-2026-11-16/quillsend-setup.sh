@@ -234,9 +234,12 @@ OPTIN_LINK=""
 if [ -z "$OPTIN_LINK" ] && [ -n "${1:-}" ]; then OPTIN_LINK="$1"; fi
 if [ -z "$OPTIN_LINK" ] && [ -n "${QS_OPT_IN_LINK:-}" ]; then OPTIN_LINK="$QS_OPT_IN_LINK"; fi
 if [ -z "$OPTIN_LINK" ]; then
-  log "Play internal-test opt-in link: not on file yet."
-  log "  It lives only in Play Console -> QuillSend -> Internal testing -> Testers tab."
-  printf 'Paste the opt-in link (or press Enter to leave it for later): '
+  log "Please find the Play internal-test opt-in link — it is not on file yet,"
+  log "and it exists in exactly one place. Here is where it is:"
+  log "  Play Console -> QuillSend -> Internal testing -> Testers tab"
+  log "  -> copy the link under 'How testers join your test'."
+  log "Paste it here and this step is done for good."
+  printf 'Paste the opt-in link (or press Enter to leave it missing): '
   read -r OPTIN_LINK || OPTIN_LINK=""
 fi
 if [ -n "$OPTIN_LINK" ]; then
