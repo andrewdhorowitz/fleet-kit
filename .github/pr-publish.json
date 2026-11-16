@@ -1,0 +1,1 @@
+{"pr_review_publish":{"enabled":false,"packages":[{"name":"middleware-text-channel-update","path":"middleware/text-channel-update-2026-11-16","termux_command":"cd ~/work/fleet-kit && git pull && node middleware/text-channel-update-2026-11-16/update-middleware-text-channel.mjs"}]}}
