@@ -31,6 +31,20 @@
 //   They now return proper Responses with the intended status
 //   codes (401 before any action parsing, 400 malformed, 404
 //   unknown endpoint). No action behavior changes.
+//
+// text-channel-update-2026-11-16: GENERAL TEXT CHANNEL — one
+// general-purpose action, text.process, carrying free-form text
+// in and text out through the existing gated invoke surface
+// (Andrew's direction, Nov 16, 2026: "whatever text you want in
+// and whatever text you want out"). The front door does not
+// change: same bearer auth, same envelope, same D1 ledger and
+// audit rows as every invoke. The inside is unused and
+// reversible, so the general shape wins over per-case endpoints.
+// The backing effects are constructive only — a fixed set of
+// pure text transforms (read/echo/transform class): no deletes,
+// no external sends, no state writes in the handler. Deployed
+// only by the owner-run update script in
+// middleware/text-channel-update-2026-11-16/.
 
 const ACTION_CATALOG = {
   // --- WAVE 1A ACTIONS ---
@@ -58,7 +72,15 @@ const ACTION_CATALOG = {
   "home.automations.upsert": { class: "mutation", async: false },
   "home.automations.set_enabled": { class: "mutation", async: false },
   "home.automations.remove": { class: "mutation", async: false },
-  "home.automations.pulse": { class: "mutation", async: false }
+  "home.automations.pulse": { class: "mutation", async: false },
+
+  // --- GENERAL TEXT CHANNEL (text-channel-update-2026-11-16) ---
+  // Free-form text in, text out. Read class: the handler is a
+  // pure function of its params — it mutates nothing beyond the
+  // ledger/audit rows the envelope writes for every invoke, and
+  // it is NOT routed through the §3.7 consequential preview
+  // machinery. See handleTextProcess below.
+  "text.process": { class: "read", async: false }
 };
 
 export default {
@@ -187,6 +209,11 @@ async function routeAction(action, mode, params, context, approval, env, request
     return routeHomeAction(action, params || {}, env, request_id, auditId, startTime, ctx);
   }
 
+  // General text channel (text-channel-update-2026-11-16).
+  if (action === "text.process") {
+    return handleTextProcess(params || {}, request_id, auditId, startTime);
+  }
+
   // App Creation (Owner Assisted - §1.3)
   if (action === "play.apps.create") {
     return buildResponse(request_id, auditId, "needs_owner", action, {
@@ -307,6 +334,56 @@ async function routeAction(action, mode, params, context, approval, env, request
 // owner-run update script — it is configuration (group names and
 // addresses), carried in a secret only because that is the fleet's
 // established owner-run config channel for this Worker.
+// =====================================================================
+// GENERAL TEXT CHANNEL (text-channel-update-2026-11-16)
+//
+// text.process — free-form text in, text out, through the same
+// gated invoke envelope as every other action (bearer auth,
+// request_id idempotency, D1 ledger + audit). Andrew's direction
+// (Nov 16, 2026): the middleware's inside is unused and nothing
+// in it is irreversible, so one general channel replaces per-case
+// endpoints; the front door stays exactly as it is.
+//
+// Constructive only, by construction: the handler is a pure
+// function of its params. It reads no env secrets, calls no
+// provider, and writes no D1 rows of its own (the envelope's
+// per-request ledger row and audit insert are the same records
+// every invoke creates; the ledger stores the response, which
+// carries text_out — the input text is not stored separately).
+// The transform set is a fixed allowlist in code, never
+// caller-supplied code. Input is bounded (TEXT_MAX_CHARS).
+// =====================================================================
+
+const TEXT_MAX_CHARS = 16384;
+
+const TEXT_TRANSFORMS = {
+  identity: (t) => t,
+  uppercase: (t) => t.toUpperCase(),
+  lowercase: (t) => t.toLowerCase(),
+  reverse: (t) => [...t].reverse().join(""),
+  word_count: (t) => String(t.trim() === "" ? 0 : t.trim().split(/\s+/).length),
+  sha256: async (t) => {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  },
+};
+
+async function handleTextProcess(params, request_id, auditId, startTime) {
+  const text = params.text;
+  if (typeof text !== "string") throw new Error("validation: text (string) required");
+  if (text.length > TEXT_MAX_CHARS) throw new Error(`validation: text exceeds ${TEXT_MAX_CHARS} characters`);
+  const transformName = params.transform || "identity";
+  const transform = TEXT_TRANSFORMS[transformName];
+  if (!transform) throw new Error(`validation: unknown transform '${transformName}' (allowed: ${Object.keys(TEXT_TRANSFORMS).join(", ")})`);
+  const textOut = await transform(text);
+  return buildResponse(request_id, auditId, "completed", "text.process", {
+    text_out: textOut,
+    transform: transformName,
+    input_chars: text.length,
+    output_chars: textOut.length,
+  }, null, startTime);
+}
+
 function loadGroupRegistry(env) {
   if (!env.MW_GROUP_REGISTRY) throw new Error("Server configuration error: MW_GROUP_REGISTRY secret is missing — run the groups update (middleware/groups-update-2026-11-12).");
   let registry;
