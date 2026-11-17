@@ -1,2 +1,12 @@
 hh-integrity-fix results — prepared Nov 17, 2026, not yet run.
 Each run of scripts/hh-integrity-fix-converge.sh appends its record below.
+hh-integrity-fix run — 2026-11-17 09:24:52 EST (Home Helper com.andrewdhorowitz.homehelper enrollment: Play Integrity decode authorization in family-routines-app, project 826159679918)
+preflight: gcloud present, signed in as andrewhorowitz3@gmail.com
+preflight: project family-routines-app: ✓ visible
+preflight: project play-publisher-513614: ✓ visible
+step 1 play integrity api (playintegrity.googleapis.com in family-routines-app): ✓ already
+step 2 decode service account: ✗ STOPPED — 0 accounts match 'integrity' in play-publisher-513614; nothing was granted. All service accounts in play-publisher-513614:
+  sa: play-api@play-publisher-513614.iam.gserviceaccount.com	Play API (fleet automation)
+  sa: play-publisher@play-publisher-513614.iam.gserviceaccount.com	play-publisher
+step 2: send this list to Muse — the decode account (key = Worker secret PLAY_INTEGRITY_SA_JSON) will be identified from it, and the script fixed to match it exactly.
+summary: STOPPED — a retry-proof condition (see above); nothing further was attempted and no grant was made beyond any step already marked ✓ applied
