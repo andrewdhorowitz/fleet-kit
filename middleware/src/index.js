@@ -609,6 +609,10 @@ async function homegraphErrorDetail(res) {
 // Automatic requestSync after any registry change (spec §2).
 // Best-effort by design: the registry write is already durable;
 // a sync failure is reported in the action result, never thrown.
+// requestsync-fix-2026-11-16: the requestSync payload carries NO
+// requestId — Google rejects the field on devices:requestSync
+// (homegraph_http_400). agentUserId + async only. (reportState
+// keeps its requestId; that API accepts it.)
 async function requestHomeSync(env) {
   if (!env.GOOGLE_HOME_SA_JSON) return { request_sync: "skipped", reason: "sa_not_configured" };
   const link = await getHomeLink(env);
@@ -619,7 +623,7 @@ async function requestHomeSync(env) {
     const res = await fetch(HOMEGRAPH_REQUEST_SYNC_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId: crypto.randomUUID(), agentUserId: HOME_AGENT_USER_ID, async: false }),
+      body: JSON.stringify({ agentUserId: HOME_AGENT_USER_ID, async: false }),
     });
     if (!res.ok) return { request_sync: "failed", detail: await homegraphErrorDetail(res) };
     return { request_sync: "requested" };
