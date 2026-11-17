@@ -10,3 +10,10 @@ step 2 decode service account: ✗ STOPPED — 0 accounts match 'integrity' in p
   sa: play-publisher@play-publisher-513614.iam.gserviceaccount.com	play-publisher
 step 2: send this list to Muse — the decode account (key = Worker secret PLAY_INTEGRITY_SA_JSON) will be identified from it, and the script fixed to match it exactly.
 summary: STOPPED — a retry-proof condition (see above); nothing further was attempted and no grant was made beyond any step already marked ✓ applied
+
+---
+Note — 2026-11-17 (Muse, from Andrew's Termux run + records):
+- Andrew ran the script Nov 17 ~09:28. Step 1: the Play Integrity API was ALREADY enabled in family-routines-app — sub-cause (a) closed, nothing to enable.
+- Step 2 stopped safely: 0 accounts match 'integrity' by name in play-publisher-513614; the only service accounts there are play-api@play-publisher-513614.iam.gserviceaccount.com and play-publisher@play-publisher-513614.iam.gserviceaccount.com. Nothing was granted.
+- Decode account identified from the Nov 7, 2026 build record (~/memory/2026-11-07.md): the Worker secret PLAY_INTEGRITY_SA_JSON is the play-api service account's key. Decode account = play-api@play-publisher-513614.iam.gserviceaccount.com.
+- Script updated the same day: step 2 now pins that exact account (stops loudly if it is ever absent). Next run should proceed straight to the step 3 grant.

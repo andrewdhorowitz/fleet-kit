@@ -26,12 +26,16 @@
 #      is printed); both projects are visible. Stop loudly if not.
 #   1. Enable playintegrity.googleapis.com in family-routines-app
 #      (skip if already enabled), then verify it lists as enabled.
-#   2. Discover the decode service account: list the service
-#      accounts in play-publisher-513614 and select the one whose
-#      email or display name matches "integrity". Exactly one match
-#      proceeds; zero or multiple matches print ALL accounts found
-#      and STOP loudly — nothing is granted, and Muse identifies
-#      the right account from the results file.
+#   2. Confirm the decode service account: it is pinned exactly to
+#      play-api@play-publisher-513614.iam.gserviceaccount.com (see
+#      DECODE_SA_EMAIL below — the Worker secret
+#      PLAY_INTEGRITY_SA_JSON is the play-api account's key, per
+#      the Nov 7, 2026 build record). If that exact account is
+#      absent from play-publisher-513614's list, print ALL accounts
+#      found and STOP loudly — nothing is granted. (The original
+#      name-match discovery ran Nov 17, 2026 and stopped safely:
+#      neither of the project's two accounts — play-api@ and
+#      play-publisher@ — has "integrity" in its name.)
 #   3. Grant the discovered account Service Usage Consumer in
 #      family-routines-app (skip if the binding already exists),
 #      then verify the binding in the project's IAM policy.
@@ -56,7 +60,7 @@
 # to 20 attempts. --once runs a single pass and exits with that
 # pass's real status. Exit codes: 0 = success; 1 = incomplete,
 # retrying may help; 3 = stopped loudly on a retry-proof condition
-# (preflight failure, or the service-account match was not unique)
+# (preflight failure, or the pinned service account not found)
 # — the loop never retries a 3.
 #
 # Usage:
@@ -69,6 +73,16 @@ SA_PROJECT="play-publisher-513614"
 API_SERVICE="playintegrity.googleapis.com"
 GRANT_ROLE="roles/serviceusage.serviceUsageConsumer"
 APP_PACKAGE="com.andrewdhorowitz.homehelper"
+# The decode account, pinned exactly. Identification: the Worker
+# secret PLAY_INTEGRITY_SA_JSON is the play-api service account's
+# key — Nov 7, 2026 build record (~/memory/2026-11-07.md):
+# "play-api SA value traveled repo-secret → Cloudflare inside
+# Actions only". The Nov 17, 2026 run of this script confirmed the
+# only service accounts in play-publisher-513614 are play-api@ and
+# play-publisher@ — neither has "integrity" in its name, so the
+# original name-match discovery stopped safely and this pin
+# replaced it.
+DECODE_SA_EMAIL="play-api@play-publisher-513614.iam.gserviceaccount.com"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -154,7 +168,12 @@ step1() {
   fi
 }
 
-# Step 2 — discover the decode service account in play-publisher-513614.
+# Step 2 — confirm the decode service account exists in
+# play-publisher-513614. The account is pinned exactly (see
+# DECODE_SA_EMAIL above): the Worker secret PLAY_INTEGRITY_SA_JSON
+# is the play-api account's key per the Nov 7, 2026 build record.
+# If the pinned account is absent from the project's list, stop
+# loudly and print everything — nothing is granted.
 step2() {
   local listing
   if ! listing="$(gcloud iam service-accounts list --project="$SA_PROJECT" \
@@ -166,23 +185,19 @@ step2() {
     log_line "step 2 decode service account: ✗ STOPPED — no service accounts at all listed in $SA_PROJECT (unexpected; nothing granted)"
     mark_stop; return
   fi
-  local matches count
-  matches="$(printf '%s\n' "$listing" | grep -i 'integrity' || true)"
-  if [[ -z "$matches" ]]; then count=0; else count="$(printf '%s\n' "$matches" | grep -c '')"; fi
-  if [[ "$count" == "1" ]]; then
-    SA_EMAIL="$(printf '%s' "$matches" | awk '{print $1}')"
-    log_line "step 2 decode service account: ✓ found $SA_EMAIL (sole 'integrity' match in $SA_PROJECT)"
+  if printf '%s\n' "$listing" | awk '{print $1}' | grep -qx "$DECODE_SA_EMAIL"; then
+    SA_EMAIL="$DECODE_SA_EMAIL"
+    log_line "step 2 decode service account: ✓ found $SA_EMAIL (pinned decode account present in $SA_PROJECT)"
     return
   fi
-  # Zero or multiple matches: print everything and stop WITHOUT
-  # granting anything. Muse identifies the right account from this
-  # list in the results file.
-  log_line "step 2 decode service account: ✗ STOPPED — $count accounts match 'integrity' in $SA_PROJECT; nothing was granted. All service accounts in $SA_PROJECT:"
+  # Pinned account absent: print everything and stop WITHOUT
+  # granting anything.
+  log_line "step 2 decode service account: ✗ STOPPED — pinned decode account $DECODE_SA_EMAIL not found in $SA_PROJECT; nothing was granted. All service accounts in $SA_PROJECT:"
   local line
   while IFS= read -r line; do
     [[ -n "$line" ]] && log_line "  sa: $line"
   done <<< "$listing"
-  log_line "step 2: send this list to Muse — the decode account (key = Worker secret PLAY_INTEGRITY_SA_JSON) will be identified from it, and the script fixed to match it exactly."
+  log_line "step 2: send this list to Muse — the pinned account no longer matches reality, and the script must be re-pinned before any grant is made."
   mark_stop
 }
 
