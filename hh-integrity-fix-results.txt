@@ -17,3 +17,12 @@ Note — 2026-11-17 (Muse, from Andrew's Termux run + records):
 - Step 2 stopped safely: 0 accounts match 'integrity' by name in play-publisher-513614; the only service accounts there are play-api@play-publisher-513614.iam.gserviceaccount.com and play-publisher@play-publisher-513614.iam.gserviceaccount.com. Nothing was granted.
 - Decode account identified from the Nov 7, 2026 build record (~/memory/2026-11-07.md): the Worker secret PLAY_INTEGRITY_SA_JSON is the play-api service account's key. Decode account = play-api@play-publisher-513614.iam.gserviceaccount.com.
 - Script updated the same day: step 2 now pins that exact account (stops loudly if it is ever absent). Next run should proceed straight to the step 3 grant.
+hh-integrity-fix run — 2026-11-17 09:58:05 EST (Home Helper com.andrewdhorowitz.homehelper enrollment: Play Integrity decode authorization in family-routines-app, project 826159679918)
+preflight: gcloud present, signed in as andrewhorowitz3@gmail.com
+preflight: project family-routines-app: ✓ visible
+preflight: project play-publisher-513614: ✓ visible
+step 1 play integrity api (playintegrity.googleapis.com in family-routines-app): ✓ already
+step 2 decode service account: ✓ found play-api@play-publisher-513614.iam.gserviceaccount.com (pinned decode account present in play-publisher-513614)
+step 3 grant roles/serviceusage.serviceUsageConsumer to play-api@play-publisher-513614.iam.gserviceaccount.com in family-routines-app: ✓ already
+summary: OK — the Play Integrity API is enabled in family-routines-app and play-api@play-publisher-513614.iam.gserviceaccount.com holds roles/serviceusage.serviceUsageConsumer there
+NEXT STEP: wait ~3 minutes for propagation, then re-tap ENROLL THIS DEVICE in Home Helper.
