@@ -9,8 +9,9 @@
 #
 # What it does:
 #   1. makes sure adb exists (installs android-tools if missing)
-#   2. connects to the phone's own wireless-debugging adbd (mDNS first,
-#      then pairing/connect ports read off the Wireless debugging page)
+#   2. if a device is already connected, uses it as-is (never re-pairs or
+#      reconnects); otherwise connects to the phone's own wireless-debugging
+#      adbd (mDNS first, then pairing/connect ports read off the page)
 #   3. dumps the crash buffer, dropbox crash entries, recent exit info,
 #      and the installed Home Helper version (settles which build is live)
 #   4. commits the results into owner-queue/results/ and pushes, for Muse
@@ -29,7 +30,12 @@ if ! command -v adb >/dev/null 2>&1; then
   pkg install -y android-tools || { echo "FAIL: pkg install android-tools"; exit 1; }
 fi
 
-connected() { adb devices 2>/dev/null | grep -Eq "^(127\.0\.0\.1|localhost):[0-9]+[[:space:]]+device$"; }
+connected() { adb devices 2>/dev/null | awk '$2 == "device" { found=1 } END { exit !found }'; }
+endpoint() { adb devices 2>/dev/null | awk '$2 == "device" { print $1; exit }'; }
+
+if connected; then
+  echo "-- already connected as $(endpoint) — skipping pair/connect"
+fi
 
 if ! connected; then
   echo "-- looking for the wireless debugging endpoint (mDNS)..."
